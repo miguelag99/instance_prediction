@@ -1,6 +1,7 @@
 USER_NAME := perception
 TAG_NAME := v0.0.1
 IMAGE_NAME := instance_pred
+WANDB_API_KEY := $(shell echo $$WANDB_API_KEY)
 
 UID := 1000
 GID := 1000
@@ -17,6 +18,7 @@ define run_docker
 		-u $(USER_NAME) \
 		-v ./:/home/$(USER_NAME)/workspace \
 		-v /home/robesafe/nuscenes/:/home/$(USER_NAME)/Datasets/nuscenes \
+		-e WANDB_API_KEY=$(WANDB_API_KEY) \
 		$(IMAGE_NAME):$(TAG_NAME) \
 		/bin/bash -c $(1)
 endef

@@ -6,7 +6,7 @@
 # Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
 # ------------------------------------------------------------------------
 
-TAG: 'powerbev'
+TAG: 'powerbev_segformer'
 
 GPUS: [0]
 

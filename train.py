@@ -39,6 +39,7 @@ def main():
         cfg.LOG_DIR, time.strftime('%d%B%Yat%H:%M:%S%Z') + '_' + socket.gethostname() + '_' + cfg.TAG
     ) 
     tb_logger = pl.loggers.TensorBoardLogger(save_dir=save_dir)
+
     checkpoint_callback = ModelCheckpoint(monitor='vpq', save_top_k=5, mode='max')
     trainer = pl.Trainer(
         gpus=cfg.GPUS,

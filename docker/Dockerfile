@@ -24,7 +24,8 @@ RUN apt-get install -y build-essential cmake git curl ca-certificates \
     python3-pip \
     python3-setuptools \
     wget \
-    jupyter
+    jupyter \
+    tmux
 
 RUN python -m pip install --upgrade pip
 ENV PATH="${PATH}:/home/$USER/.local/bin"
