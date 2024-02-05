@@ -7,13 +7,13 @@ from transformers import TimesformerConfig, TimesformerModel
 from transformers import PvtModel, PvtConfig
 from transformers import SegformerModel, SegformerConfig
 
-from prediction.custom_model.feature_extractor import FeatureExtractor
-from prediction.custom_model.stconv import MultiBranchSTconv
+from prediction.powerformer.feature_extractor import FeatureExtractor
+from prediction.powerformer.stconv import MultiBranchSTconv
 
 
 # from custom_pred.model.transformer_modules import Longformer
 
-class MotionPredictor(nn.Module):
+class PowerFormer(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg

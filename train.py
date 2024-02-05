@@ -1,30 +1,39 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
-
 import os
 import socket
 import time
+import argparse
 
-import pytorch_lightning as pl
+import lightning as L
 import torch
-from prediction.config import get_cfg, get_parser
-from prediction.data import prepare_powerbev_dataloaders
+
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary
+from lightning.pytorch.strategies import DDPStrategy
+
+from prediction.data.prepare_loader import prepare_dataloaders
+from prediction.configs import baseline_cfg
+from prediction.config import namespace_to_dict
 from prediction.trainer import TrainingModule
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.plugins import DDPPlugin
 
+import gc 
+gc.collect()
 
-def main():
-    args = get_parser().parse_args()
-    cfg = get_cfg(args)
+def main(args):
 
-    trainloader, valloader = prepare_powerbev_dataloaders(cfg)
-    model = TrainingModule(cfg.convert_to_dict())
+    # Load training config
+    if args.config == 'baseline':
+        cfg = baseline_cfg
+
+    hparams = namespace_to_dict(cfg)
+    save_dir = os.path.join(
+        cfg.LOG_DIR, time.strftime('%d%B%Yat%H:%M:%S%Z') + '_' + socket.gethostname() + '_' + cfg.TAG
+    ) 
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    trainloader, valloader = prepare_dataloaders(cfg)
+
+    l_module = TrainingModule(hparams, cfg)
 
     if cfg.PRETRAINED.LOAD_WEIGHTS:
         # Load single-image instance segmentation model.
@@ -32,31 +41,50 @@ def main():
             cfg.PRETRAINED.PATH , map_location='cpu'
         )['state_dict']
 
-        model.load_state_dict(pretrained_model_weights, strict=False)
+        l_module.load_state_dict(pretrained_model_weights, strict=False)
         print(f'Loaded single-image model weights from {cfg.PRETRAINED.PATH}')
 
-    save_dir = os.path.join(
-        cfg.LOG_DIR, time.strftime('%d%B%Yat%H:%M:%S%Z') + '_' + socket.gethostname() + '_' + cfg.TAG
-    ) 
-    tb_logger = pl.loggers.TensorBoardLogger(save_dir=save_dir)
 
-    checkpoint_callback = ModelCheckpoint(monitor='vpq', save_top_k=5, mode='max')
-    trainer = pl.Trainer(
-        gpus=cfg.GPUS,
-        accelerator='ddp',
+
+    wdb_logger = WandbLogger(project='powerbev',save_dir=save_dir,log_model=True)
+    chkpt_callback = ModelCheckpoint(dirpath=save_dir,
+                                     monitor='vpq',
+                                     save_top_k=5,
+                                     mode='max',
+                                     filename='model-{epoch}-{vpq:.4f}')
+
+    summary_callback = ModelSummary()
+
+    trainer = L.Trainer(
+        accelerator=cfg.ACCELERATOR,
+        devices=cfg.DEVICES,
         precision=cfg.PRECISION,
         sync_batchnorm=True,
         gradient_clip_val=cfg.GRAD_NORM_CLIP,
         max_epochs=cfg.EPOCHS,
-        weights_summary='full',
-        logger=tb_logger,
+        logger=wdb_logger,
         log_every_n_steps=cfg.LOGGING_INTERVAL,
-        plugins=DDPPlugin(find_unused_parameters=True),
+        callbacks=[chkpt_callback, summary_callback],
         profiler='simple',
-        callbacks=[checkpoint_callback],
     )
-    trainer.fit(model, trainloader, valloader)
+
+    trainer.fit(l_module, trainloader, valloader)
+
+    # Free memory
+    del l_module
+    del trainer
+    del trainloader
+    del valloader
+    torch.cuda.empty_cache()
+
 
 
 if __name__ == "__main__":
-    main()
+    # Create parser with one argument
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default='baseline')
+    args = parser.parse_args()
+
+
+
+    main(args)

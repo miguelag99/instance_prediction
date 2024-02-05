@@ -1,11 +1,3 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
-
 import os
 from operator import rshift
 
@@ -14,12 +6,21 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchvision
+
 from cv2 import fastNlMeansDenoising
-from lyft_dataset_sdk.lyftdataset import LyftDataset
-from nuscenes.nuscenes import NuScenes
+
 from nuscenes.utils.data_classes import Box
 from nuscenes.utils.splits import create_splits_scenes
 from PIL import Image
+
+'''
+    Issue with Pytorch dataset using n_workers > 0, causing RAM leak in big datasets.
+    The python list or dict types should be wrapped by a multiprocessing.Manager() object.
+    https://github.com/pytorch/pytorch/issues/13246
+    https://github.com/pytorch/pytorch/issues/13246#issuecomment-612396143
+'''
+from multiprocessing import Manager
+
 from prediction.utils.geometry import (calculate_birds_eye_view_parameters,
                                      convert_egopose_to_matrix_numpy,
                                      invert_matrix_egopose_numpy, mat2pose_vec,
@@ -34,11 +35,12 @@ from scipy.spatial.transform import Rotation as R
 
 class FuturePredictionDataset(torch.utils.data.Dataset):
     def __init__(self, nusc, is_train, cfg):
+        self.manager = Manager()
         self.nusc = nusc
         self.is_train = is_train
         self.cfg = cfg
 
-        self.is_lyft = isinstance(nusc, LyftDataset)
+        self.is_lyft = False
 
         if self.is_lyft:
             self.dataroot = self.nusc.data_path
@@ -49,12 +51,12 @@ class FuturePredictionDataset(torch.utils.data.Dataset):
 
         self.sequence_length = cfg.TIME_RECEPTIVE_FIELD + cfg.N_FUTURE_FRAMES
 
-        self.scenes = self.get_scenes()
-        self.ixes = self.get_samples()
-        self.indices = self.get_indices()
+        self.scenes = self.manager.list(self.get_scenes())
+        self.ixes = self.manager.list(self.get_samples())
+        self.indices = self.manager.list(self.get_indices())
 
         # Image resizing and cropping
-        self.augmentation_parameters = self.get_resizing_and_cropping_parameters()
+        self.augmentation_parameters = self.manager.dict(self.get_resizing_and_cropping_parameters())
 
         # Normalising input images
         self.normalise_image = torchvision.transforms.Compose(
@@ -367,7 +369,7 @@ class FuturePredictionDataset(torch.utils.data.Dataset):
         Generate ground truth for the flow of each instance based on instance segmentation.
         """
         _, h, w = instance_img.shape
-        x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float))
+        x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float), indexing='ij')
         grid = torch.stack((x, y), dim=0)
 
         # Set the first frame
@@ -550,6 +552,7 @@ class FuturePredictionDataset(torch.utils.data.Dataset):
             data['future_egomotion'].append(future_egomotion)
             data['sample_token'].append(rec['token'])
 
+
         # Refine the generated instance polygons    
         for token in self.instance_dict.keys():
             self.instance_dict[token] = self.refine_instance_poly(self.instance_dict[token])
@@ -598,40 +601,4 @@ class FuturePredictionDataset(torch.utils.data.Dataset):
         return data
 
 
-def prepare_powerbev_dataloaders(cfg, return_dataset=False):
-    """
-    Prepare the dataloader of PowerBEV.
-    """
-    version = cfg.DATASET.VERSION
-    train_on_training_data = True
 
-    if cfg.DATASET.NAME == 'nuscenes':
-        # 28130 train and 6019 val
-        dataroot = os.path.join(cfg.DATASET.DATAROOT, version)
-        nusc = NuScenes(version='v1.0-{}'.format(cfg.DATASET.VERSION), dataroot=dataroot, verbose=False)
-    elif cfg.DATASET.NAME == 'lyft':
-        # train contains 22680 samples
-        # we split in 16506 6174
-        dataroot = os.path.join(cfg.DATASET.DATAROOT, 'trainval')
-        nusc = LyftDataset(data_path=dataroot,
-                           json_path=os.path.join(dataroot, 'train_data'),
-                           verbose=True)
-
-    train_data = FuturePredictionDataset(nusc, train_on_training_data, cfg)
-    val_data = FuturePredictionDataset(nusc, False, cfg)
-
-    if cfg.DATASET.VERSION == 'mini':
-        train_data.indices = train_data.indices[:10]
-        val_data.indices = val_data.indices[:10]
-
-    nworkers = cfg.N_WORKERS
-    train_loader = torch.utils.data.DataLoader(
-        train_data, batch_size=cfg.BATCHSIZE, shuffle=True, num_workers=nworkers, pin_memory=True, drop_last=True
-    )
-    val_loader = torch.utils.data.DataLoader(
-        val_data, batch_size=1, shuffle=False, num_workers=nworkers, pin_memory=True, drop_last=False)
-
-    if return_dataset:
-        return train_loader, val_loader, train_data, val_data
-    else:
-        return train_loader, val_loader

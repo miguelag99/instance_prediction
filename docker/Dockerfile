@@ -1,13 +1,14 @@
-FROM nvidia/cuda:11.2.2-base-ubuntu20.04
+# FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
+FROM nvcr.io/nvidia/pytorch:23.10-py3
 
 # Obtain the UID and GID of the current user to create a user with the same ID, this is to avoid permission issues when mounting local volumes.
-ARG USER=perception
-ARG USER_ID=1000
-ARG USER_GID=1000
+ARG USER
+ARG USER_ID
+ARG USER_GID
 
 ENV TZ=Europe/Madrid
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
- 
+
 # Add user.
 RUN groupadd -g $USER_GID $USER \
     && useradd --uid $USER_ID --gid $USER_GID -m $USER \
@@ -35,12 +36,7 @@ COPY requirements.txt /.cache
 
 USER $USER
 
-# Install python requirements
 RUN pip install -r /.cache/requirements.txt
-RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-RUN pip install torchvision==0.9.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-
-
 
 WORKDIR /home/$USER/Datasets
 WORKDIR /home/$USER/workspace

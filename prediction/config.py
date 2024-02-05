@@ -1,15 +1,19 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
-
 import argparse
+from types import SimpleNamespace
 
+def namespace_to_dict(namespace):
+    if isinstance(namespace, SimpleNamespace):
+        result = {}
+        for key, value in namespace.__dict__.items():
+            result[key] = namespace_to_dict(value)
+        return result
+    elif isinstance(namespace, list):
+        return [namespace_to_dict(item) for item in namespace]
+    else:
+        return namespace
+
+'''
 from fvcore.common.config import CfgNode as _CfgNode
-
 
 def convert_to_dict(cfg_node, key_list=[]):
     """Convert a config node to dictionary."""
@@ -45,7 +49,7 @@ _C.TAG = 'default'
 _C.GPUS = [0]  # which gpus to use
 _C.PRECISION = 32  # 16bit or 32bit
 _C.BATCHSIZE = 2
-_C.EPOCHS = 20
+_C.EPOCHS = 1
 
 _C.N_WORKERS = 4
 _C.VIS_INTERVAL = 5000
@@ -142,6 +146,7 @@ _C.VISUALIZATION.OUTPUT_PATH = './visualization_outputs'
 _C.VISUALIZATION.SAMPLE_NUMBER = 1000
 _C.VISUALIZATION.VIS_GT = False
 
+
 def get_parser():
     parser = argparse.ArgumentParser(description='PowerBEV training')
     parser.add_argument('--config-file', default='', metavar='FILE', help='path to config file')
@@ -166,3 +171,4 @@ def get_cfg(args=None, cfg_dict=None):
         cfg.merge_from_list(args.opts)
         cfg.freeze()
     return cfg
+'''

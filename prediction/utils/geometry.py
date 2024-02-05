@@ -308,7 +308,7 @@ def flow_warp(occupancy, flow, mode='nearest', padding_mode='zeros'):
 
     h = torch.linspace(-1, 1, steps=grid_height_cells)
     w = torch.linspace(-1, 1, steps=grid_width_cells)
-    h_idx, w_idx = torch.meshgrid(h, w)
+    h_idx, w_idx = torch.meshgrid(h, w, indexing='ij')
     # These indices map each (x, y) location to the pixel (x, y).
     identity_indices = torch.stack((w_idx, h_idx), dim=0).to(device=occupancy.device)  # 2xHxW, storing x, y coordinates.
 

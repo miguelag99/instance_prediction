@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from prediction.custom_model.camera_encoder import Encoder
+from prediction.powerformer.camera_encoder import Encoder
 from prediction.utils.network import pack_sequence_dim, unpack_sequence_dim
 from prediction.utils.geometry import VoxelsSumming, calculate_birds_eye_view_parameters, cumulative_warp_features
 

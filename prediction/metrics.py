@@ -1,18 +1,8 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
+import torch
 
 from typing import Optional
-
-import torch
-from pytorch_lightning.metrics.functional.classification import \
-    stat_scores_multiple_classes
-from pytorch_lightning.metrics.functional.reduction import reduce
-from pytorch_lightning.metrics.metric import Metric
+from torchmetrics import Metric
+from torchmetrics.classification import MulticlassStatScores
 
 
 class IntersectionOverUnion(Metric):
@@ -23,14 +13,19 @@ class IntersectionOverUnion(Metric):
         ignore_index: Optional[int] = None,
         absent_score: float = 0.0,
         reduction: str = 'none',
-        compute_on_step: bool = False,
     ):
-        super().__init__(compute_on_step=compute_on_step)
+        super().__init__()
 
         self.n_classes = n_classes
         self.ignore_index = ignore_index
         self.absent_score = absent_score
         self.reduction = reduction
+
+        self.mcss = MulticlassStatScores(num_classes=n_classes,
+                                         ignore_index=ignore_index,
+                                         multidim_average='global',
+                                         average=None)
+
 
         self.add_state('true_positive', default=torch.zeros(n_classes), dist_reduce_fx='sum')
         self.add_state('false_positive', default=torch.zeros(n_classes), dist_reduce_fx='sum')
@@ -38,7 +33,13 @@ class IntersectionOverUnion(Metric):
         self.add_state('support', default=torch.zeros(n_classes), dist_reduce_fx='sum')
 
     def update(self, prediction: torch.Tensor, target: torch.Tensor):
-        tps, fps, _, fns, sups = stat_scores_multiple_classes(prediction, target, self.n_classes)
+        
+        stats = self.mcss(prediction, target)
+        tps = stats[:,0]
+        fps = stats[:,1]
+        fns = stats[:,3]
+        sups = stats[:,4]
+        # tps, fps, _, fns, sups = self.mcss(prediction, target)
 
         self.true_positive += tps
         self.false_positive += fps
@@ -71,8 +72,8 @@ class IntersectionOverUnion(Metric):
         if (self.ignore_index is not None) and (0 <= self.ignore_index < self.n_classes):
             scores = torch.cat([scores[:self.ignore_index], scores[self.ignore_index+1:]])
 
-        return reduce(scores, reduction=self.reduction)
-
+        return scores
+    
 
 class PanopticMetric(Metric):
     def __init__(
@@ -80,9 +81,8 @@ class PanopticMetric(Metric):
         n_classes: int,
         temporally_consistent: bool = True,
         vehicles_id: int = 1,
-        compute_on_step: bool = False,
     ):
-        super().__init__(compute_on_step=compute_on_step)
+        super().__init__()
 
         self.n_classes = n_classes
         self.temporally_consistent = temporally_consistent
@@ -262,3 +262,4 @@ class PanopticMetric(Metric):
         segmentation[~segmentation_mask] = 0  # Shift void class to zero.
 
         return segmentation, instance_id_to_class
+

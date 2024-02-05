@@ -21,7 +21,7 @@ def convert_instance_mask_to_center_and_offset_label(instance_img, num_instances
     center_label = torch.zeros(seq_len, 1, h, w)
     offset_label = ignore_index * torch.ones(seq_len, 2, h, w)
     # x is vertical displacement, y is horizontal displacement
-    x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float))
+    x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float), indexing='ij')
 
     # Ignore id 0 which is the background
     for instance_id in range(1, num_instances+1):
@@ -193,7 +193,8 @@ def predict_instance_segmentation(output, compute_matched_centers=False,  vehicl
         _, seq_len, h, w = consistent_instance_seg.shape
         grid = torch.stack(torch.meshgrid(
             torch.arange(h, dtype=torch.float, device=preds.device),
-            torch.arange(w, dtype=torch.float, device=preds.device)
+            torch.arange(w, dtype=torch.float, device=preds.device),
+            indexing='ij'
         ))
 
         for instance_id in torch.unique(consistent_instance_seg[0, 1])[1:].cpu().numpy():
@@ -250,7 +251,8 @@ def generate_gt_instance_segmentation(output, compute_matched_centers=False,  ve
         _, seq_len, h, w = consistent_instance_seg.shape
         grid = torch.stack(torch.meshgrid(
             torch.arange(h, dtype=torch.float, device=preds.device),
-            torch.arange(w, dtype=torch.float, device=preds.device)
+            torch.arange(w, dtype=torch.float, device=preds.device),
+            indexing='ij'
         ))
 
         for instance_id in torch.unique(consistent_instance_seg[0, 1])[1:].cpu().numpy():

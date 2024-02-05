@@ -1,6 +1,7 @@
 USER_NAME := perception
 TAG_NAME := v0.0.1
 IMAGE_NAME := instance_pred
+LIGHTNING_VER := 2
 WANDB_API_KEY := $(shell echo $$WANDB_API_KEY)
 
 UID := 1000
@@ -8,6 +9,7 @@ GID := 1000
 
 
 define run_docker
+	clear && \
 	docker run -it --rm \
 		--net host \
 		--gpus all \
@@ -19,7 +21,7 @@ define run_docker
 		-v ./:/home/$(USER_NAME)/workspace \
 		-v /home/robesafe/nuscenes/:/home/$(USER_NAME)/Datasets/nuscenes \
 		-e WANDB_API_KEY=$(WANDB_API_KEY) \
-		$(IMAGE_NAME):$(TAG_NAME) \
+		'$(IMAGE_NAME)_$(LIGHTNING_VER)':$(TAG_NAME) \
 		/bin/bash -c $(1)
 endef
 
@@ -39,7 +41,7 @@ define run_docker_dgx
 endef
 
 build:
-	docker build ./docker -t $(IMAGE_NAME):$(TAG_NAME) --force-rm --build-arg USER=$(USER_NAME) --build-arg USER_ID=$(UID) --build-arg USER_GID=$(GID)
+	docker build ./docker/v${LIGHTNING_VER} -t '$(IMAGE_NAME)_$(LIGHTNING_VER)':$(TAG_NAME) --force-rm --build-arg USER=$(USER_NAME) --build-arg USER_ID=$(UID) --build-arg USER_GID=$(GID)
 
 attach:
 	docker exec -it $(IMAGE_NAME)_container bash

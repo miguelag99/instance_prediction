@@ -1,0 +1,47 @@
+program: aaaaaa.py
+name: my-sweep
+method: random
+run_cap: 10
+metric:
+  name: train_loss
+  goal: minimize
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "--config"
+  - "baseline"
+
+parameters:
+
+  ENCODER:
+    parameters:
+      HIDDEN_DIM:
+        values: [128, 256, 512]
+
+
+  PRECISION:
+    values: [16, 32]
+  # LIFT:
+  #   parameters:
+  #     X_BOUND:
+  #       values: [[-50.0, 50.0, 0.5],[-15.0, 15.0, 0.15]]
+  #     Y_BOUND:
+  #       values: [[-50.0, 50.0, 0.5],[-15.0, 15.0, 0.15]]
+  # MODEL:
+  #   parameters:
+  #     STCONV:
+  #       parameters:
+  #         LATENT_DIM:
+  #           values:
+  #             distribution: int_uniform
+  #             min: 3
+  #             max: 9
+  #     SEGFORMER:
+  #       parameters:
+  #         DEPTHS:
+  #           values:
+  #             - [2, 2, 2, 2, 2]
+  #             - [3, 3, 3, 3, 3]
+
+

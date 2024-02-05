@@ -1,71 +1,61 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
-
 import time
-
-import pytorch_lightning as pl
+import lightning as L
 import torch
 import torch.nn as nn
-from prediction.config import get_cfg
+
+from prediction.models.powerbev import PowerBEV
+from prediction.powerformer.predictor import PowerFormer
 from prediction.losses import SegmentationLoss, SpatialRegressionLoss
 from prediction.metrics import IntersectionOverUnion, PanopticMetric
-from prediction.models.powerbev import PowerBEV
-from prediction.custom_model.predictor import MotionPredictor
 from prediction.utils.instance import predict_instance_segmentation
-from prediction.utils.visualisation import visualise_output
-from thop import profile
 
 
-class TrainingModule(pl.LightningModule):
-    def __init__(self, hparams):
+class TrainingModule(L.LightningModule):
+    def __init__(self, hparams, cfg):
         super().__init__()
-        
-        # see config.py for details
-        self.hparams = hparams
-        # pytorch lightning does not support saving YACS CfgNone
-        cfg = get_cfg(cfg_dict=self.hparams)
+
+        self.params = hparams
+        self.save_hyperparameters()
         self.cfg = cfg
+        self.bs = self.cfg.BATCHSIZE
+
         self.n_classes = len(self.cfg.SEMANTIC_SEG.WEIGHTS)
+
+        if self.cfg.MODEL.NAME == 'powerbev':
+            self.model = PowerBEV(self.cfg)
+        elif self.cfg.MODEL.NAME == 'powerformer':
+            self.model = PowerFormer(self.cfg)
+        else:
+            raise NotImplementedError      
 
         # Bird's-eye view extent in meters
         assert self.cfg.LIFT.X_BOUND[1] > 0 and self.cfg.LIFT.Y_BOUND[1] > 0
         self.spatial_extent = (self.cfg.LIFT.X_BOUND[1], self.cfg.LIFT.Y_BOUND[1])
-
-        # Model
-        if self.cfg.MODEL.CUSTOM == False:
-            self.model = PowerBEV(cfg)
-        else:
-            self.model = MotionPredictor(cfg)
-            print("Using custom model")
-            print(self.model)
-
-        self.calculate_flops = False
+ 
 
         # Losses
-        self.losses_fn = nn.ModuleDict()
-        self.losses_fn['segmentation'] = SegmentationLoss(
+        seg_loss = SegmentationLoss(
             class_weights=torch.Tensor(self.cfg.SEMANTIC_SEG.WEIGHTS),
             use_top_k=self.cfg.SEMANTIC_SEG.USE_TOP_K,
             top_k_ratio=self.cfg.SEMANTIC_SEG.TOP_K_RATIO,
             future_discount=self.cfg.FUTURE_DISCOUNT,
         )
-        self.losses_fn['instance_flow'] = SpatialRegressionLoss(
+        flow_loss = SpatialRegressionLoss(
             norm=1.5, 
             future_discount=self.cfg.FUTURE_DISCOUNT, 
             ignore_index=self.cfg.DATASET.IGNORE_INDEX,
         )
+        self.losses_fn = nn.ModuleDict({
+            'segmentation': seg_loss,
+            'instance_flow': flow_loss,
+        })
 
         # Uncertainty weighting
         self.model.segmentation_weight = nn.Parameter(torch.tensor(0.0), requires_grad=True)
         self.model.flow_weight = nn.Parameter(torch.tensor(0.0), requires_grad=True)
 
         # Metrics
-        self.metric_iou_val = IntersectionOverUnion(self.n_classes)
+        self.metric_iou_val = IntersectionOverUnion(n_classes=self.n_classes)
         self.metric_panoptic_val = PanopticMetric(n_classes=self.n_classes)
 
         self.training_step_count = 0
@@ -73,51 +63,44 @@ class TrainingModule(pl.LightningModule):
         # Run time
         self.perception_time, self.prediction_time, self.postprocessing_time = [], [], []
 
+        # Output vars
+        # self.training_out = []
+        # self.validation_out = []
+
     def shared_step(self, batch, is_train):
-        image = batch['image']
-        intrinsics = batch['intrinsics']
-        extrinsics = batch['extrinsics']
-        future_egomotion = batch['future_egomotion']
+            image = batch['image']
+            intrinsics = batch['intrinsics']
+            extrinsics = batch['extrinsics']
+            future_egomotion = batch['future_egomotion']
 
-        # Warp labels
-        labels, future_distribution_inputs = self.prepare_future_labels(batch)
+            # Warp labels
+            labels, future_distribution_inputs = self.prepare_future_labels(batch)
 
-        # Calculate FLOPs
-        if self.calculate_flops:
-            flops, _ = profile(self.model, inputs=(image, intrinsics, extrinsics, future_egomotion, future_distribution_inputs))
-            print('{:.2f} G \tTotal FLOPs'.format(flops/1000**3))
-            self.calculate_flops = False
+            # Forward pass
+            output = self.model(image, intrinsics, extrinsics, future_egomotion, future_distribution_inputs)
 
-        # Forward pass
-        output = self.model(image, intrinsics, extrinsics, future_egomotion, future_distribution_inputs)
+            # Calculate loss
+            loss = self.calculate_loss(output, labels)
 
-        # print(f'Model out: {output.keys()}')
-        # print(f'Shape segmentation: {output["segmentation"].shape}')
-        # print(f'Shape instance_flow: {output["instance_flow"].shape}')
+            if not is_train:
+                # Perform warping-based pixel-level association
+                start_time = time.time()
+                pred_consistent_instance_seg = predict_instance_segmentation(output, spatial_extent=self.spatial_extent)
+                end_time = time.time()
 
-        # Calculate loss
-        loss = self.calculate_loss(output, labels)
+                # Calculate metrics
+                self.metric_iou_val(torch.argmax(output['segmentation'].detach(), dim=2, keepdims=True)[:, 1:], labels['segmentation'][:, 1:])
+                self.metric_panoptic_val(pred_consistent_instance_seg[:, 1:], labels['instance'][:, 1:])
+            
+                # Record run time
+                self.perception_time.append(output['perception_time'])
+                self.prediction_time.append(output['prediction_time'])
+                self.postprocessing_time.append(end_time-start_time)
 
-        if not is_train:
-            # Perform warping-based pixel-level association
-            start_time = time.time()
-            pred_consistent_instance_seg = predict_instance_segmentation(output, spatial_extent=self.spatial_extent)
-            end_time = time.time()
-
-            # Calculate metrics
-            self.metric_iou_val(torch.argmax(output['segmentation'].detach(), dim=2, keepdims=True)[:, 1:], labels['segmentation'][:, 1:])
-            self.metric_panoptic_val(pred_consistent_instance_seg[:, 1:], labels['instance'][:, 1:])
-        
-            # Record run time
-            self.perception_time.append(output['perception_time'])
-            self.prediction_time.append(output['prediction_time'])
-            self.postprocessing_time.append(end_time-start_time)
-
-        return output, labels, loss
+            return output, labels, loss
 
     def calculate_loss(self, output, labels):
         loss = {}
-
         segmentation_factor = 100 / torch.exp(self.model.segmentation_weight)
         loss['segmentation'] = segmentation_factor * self.losses_fn['segmentation'](
             output['segmentation'], 
@@ -131,7 +114,7 @@ class TrainingModule(pl.LightningModule):
             labels['flow']
         )
         loss['flow_uncertainty'] = 0.5 * self.model.flow_weight
-    
+
         return loss
 
     def prepare_future_labels(self, batch):
@@ -172,88 +155,69 @@ class TrainingModule(pl.LightningModule):
 
         return labels, future_distribution_inputs
 
-    def visualise(self, labels, output, batch_idx, prefix='train'):
-        visualisation_video = visualise_output(labels, output, self.cfg)
-        name = f'{prefix}_outputs'
-        if prefix == 'val':
-            name = name + f'_{batch_idx}'
-        # self.logger.experiment.add_video(name, visualisation_video, global_step=self.training_step_count, fps=2)
-
     def training_step(self, batch, batch_idx):
         output, labels, loss = self.shared_step(batch, True)
         self.training_step_count += 1
         for key, value in loss.items():
-            self.logger.experiment.add_scalar('train_loss/' + key, value, global_step=self.training_step_count)
-        
-        if self.training_step_count % self.cfg.VIS_INTERVAL == 0:
-            self.visualise(labels, output, batch_idx, prefix='train')
+            self.log('train_loss/' + key, value, batch_size = self.bs)
         return sum(loss.values())
-
+    
     def validation_step(self, batch, batch_idx):
         output, labels, loss = self.shared_step(batch, False)
         for key, value in loss.items():
-            self.log('val_loss/' + key, value)
+            self.log('val_loss/' + key, value, batch_size = self.bs)
 
-        if batch_idx == 0:
-            self.visualise(labels, output, batch_idx, prefix='val')
-    
     def test_step(self, batch, batch_idx):
         output, labels, loss = self.shared_step(batch, False)
         for key, value in loss.items():
-            self.log('test_loss/' + key, value)
+            self.log('test_loss/' + key, value, batch_size = self.bs)
 
-        if batch_idx == 0:
-            self.visualise(labels, output, batch_idx, prefix='test')
+    def shared_epoch_end(self, is_train):
+            # Log per class iou metrics
+            class_names = ['background', 'dynamic']
+            if not is_train:
+                print("========================== Metrics ==========================")
+                scores = self.metric_iou_val.compute()
+                
+                for key, value in zip(class_names, scores):
+                    self.log('metrics/val_iou_' + key, value, batch_size = self.bs)
+                    print(f"val_iou_{key}: {value}")
+                self.metric_iou_val.reset()
 
-    def shared_epoch_end(self, step_outputs, is_train):
-        # Log per class iou metrics
-        class_names = ['background', 'dynamic']
-        if not is_train:
-            print("========================== Metrics ==========================")
-            scores = self.metric_iou_val.compute()
-            
-            for key, value in zip(class_names, scores):
-                self.logger.experiment.add_scalar('metrics/val_iou_' + key, value, global_step=self.training_step_count)
-                print(f"val_iou_{key}: {value}")
-            self.metric_iou_val.reset()
+                scores = self.metric_panoptic_val.compute()
 
-            scores = self.metric_panoptic_val.compute()
+                for key, value in scores.items():
+                    for instance_name, score in zip(class_names, value):
+                        if instance_name != 'background':
+                            self.log(f'metrics/val_{key}_{instance_name}', score.item(), batch_size = self.bs)
+                            print(f"val_{key}_{instance_name}: {score.item()}")
+                        # Log VPQ metric for the model checkpoint monitor 
+                        if key == 'pq' and instance_name == 'dynamic':
+                            self.log('vpq', score.item(), batch_size = self.bs)
+                self.metric_panoptic_val.reset()
 
-            for key, value in scores.items():
-                for instance_name, score in zip(class_names, value):
-                    if instance_name != 'background':
-                        self.logger.experiment.add_scalar(f'metrics/val_{key}_{instance_name}', score.item(),
-                                                          global_step=self.training_step_count)
-                        print(f"val_{key}_{instance_name}: {score.item()}")
-                    # Log VPQ metric for the model checkpoint monitor 
-                    if key == 'pq' and instance_name == 'dynamic':
-                        self.log('vpq', score.item())
-            self.metric_panoptic_val.reset()
+                print("========================== Runtime ==========================")
+                perception_time = sum(self.perception_time) / (len(self.perception_time) + 1e-8)
+                prediction_time = sum(self.prediction_time) / (len(self.prediction_time) + 1e-8)
+                postprocessing_time = sum(self.postprocessing_time) / (len(self.postprocessing_time) + 1e-8)
+                print(f"perception_time: {perception_time}")
+                print(f"prediction_time: {prediction_time}")
+                print(f"postprocessing_time: {postprocessing_time}")
+                print(f"total_time: {perception_time + prediction_time + postprocessing_time}")
+                print("=============================================================")
+                self.perception_time, self.prediction_time, self.postprocessing_time = [], [], []
 
-            print("========================== Runtime ==========================")
-            perception_time = sum(self.perception_time) / (len(self.perception_time) + 1e-8)
-            prediction_time = sum(self.prediction_time) / (len(self.prediction_time) + 1e-8)
-            postprocessing_time = sum(self.postprocessing_time) / (len(self.postprocessing_time) + 1e-8)
-            print(f"perception_time: {perception_time}")
-            print(f"prediction_time: {prediction_time}")
-            print(f"postprocessing_time: {postprocessing_time}")
-            print(f"total_time: {perception_time + prediction_time + postprocessing_time}")
-            print("=============================================================")
-            self.perception_time, self.prediction_time, self.postprocessing_time = [], [], []
+            self.log('weights/segmentation_weight', 1 / (torch.exp(self.model.segmentation_weight)))
+            self.log('weights/flow_weight', 1 / (2 * torch.exp(self.model.flow_weight)))
 
-        self.logger.experiment.add_scalar('weights/segmentation_weight', 1 / (torch.exp(self.model.segmentation_weight)),
-                                          global_step=self.training_step_count)
-        self.logger.experiment.add_scalar('weights/flow_weight', 1 / (2 * torch.exp(self.model.flow_weight)),
-                                          global_step=self.training_step_count)
-
-    def training_epoch_end(self, step_outputs):
-        self.shared_epoch_end(step_outputs, True)
-
-    def validation_epoch_end(self, step_outputs):
-        self.shared_epoch_end(step_outputs, False)
-
-    def test_epoch_end(self, step_outputs):
-        self.shared_epoch_end(step_outputs, False)
+    def on_train_epoch_end(self):
+        self.shared_epoch_end(True)
+    
+    def on_validation_epoch_end(self):
+        self.shared_epoch_end(False)
+    
+    def on_test_epoch_end(self):
+        self.shared_epoch_end(False)
 
     def configure_optimizers(self):
         params = self.model.parameters()
@@ -262,3 +226,4 @@ class TrainingModule(pl.LightningModule):
         )
 
         return optimizer
+
