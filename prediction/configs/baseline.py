@@ -3,17 +3,18 @@ import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'default',
+    TAG = 'powerformer_lrsched_image_log',
+    WANDB_PROJECT = 'new_code_tests',
 
     ACCELERATOR = "cuda",
     GPUS = 0,  # which gpus to use
     DEVICES = "auto", # how many gpus to use, auto for all available
-    PRECISION = '16-mixed',  # 16-mixed or 32bit
+    PRECISION = '32',  # 16-mixed or 32bit
     BATCHSIZE = 2,
     EPOCHS = 20,
 
     N_WORKERS = 3,
-    VIS_INTERVAL = 5000,
+    VIS_INTERVAL = 500,
     LOGGING_INTERVAL = 100,
 
     PRETRAINED = SimpleNamespace(
@@ -124,7 +125,7 @@ Config = SimpleNamespace(
     FUTURE_DISCOUNT = 0.95,
 
     OPTIMIZER = SimpleNamespace(
-        LR = 3e-4,
+        LR = 1e-3,
         WEIGHT_DECAY = 1e-7,
     ),
 

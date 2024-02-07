@@ -1,6 +1,8 @@
 checkpoints/*
 wandb/*
 tensorboard_logs/*
+lightning_logs/*
+training_results/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

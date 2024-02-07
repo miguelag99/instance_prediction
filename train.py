@@ -2,13 +2,14 @@ import os
 import socket
 import time
 import argparse
+import numpy as np
 
 import lightning as L
 import torch
 
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary
-from lightning.pytorch.strategies import DDPStrategy
+from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary, LearningRateMonitor
+# from lightning.pytorch.strategies import DDPStrategy
 
 from prediction.data.prepare_loader import prepare_dataloaders
 from prediction.configs import baseline_cfg
@@ -31,6 +32,13 @@ def main(args):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
+    # Set random seed for reproducibility
+    seed = 42
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    
     trainloader, valloader = prepare_dataloaders(cfg)
 
     l_module = TrainingModule(hparams, cfg)
@@ -46,14 +54,15 @@ def main(args):
 
 
 
-    wdb_logger = WandbLogger(project='powerbev',save_dir=save_dir,log_model=True)
+    wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
+                             log_model=True, name=cfg.TAG)
     chkpt_callback = ModelCheckpoint(dirpath=save_dir,
                                      monitor='vpq',
                                      save_top_k=5,
                                      mode='max',
                                      filename='model-{epoch}-{vpq:.4f}')
 
-    summary_callback = ModelSummary()
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
 
     trainer = L.Trainer(
         accelerator=cfg.ACCELERATOR,
@@ -64,7 +73,7 @@ def main(args):
         max_epochs=cfg.EPOCHS,
         logger=wdb_logger,
         log_every_n_steps=cfg.LOGGING_INTERVAL,
-        callbacks=[chkpt_callback, summary_callback],
+        callbacks=[chkpt_callback, lr_monitor],
         profiler='simple',
     )
 

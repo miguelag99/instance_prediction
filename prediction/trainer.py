@@ -2,12 +2,17 @@ import time
 import lightning as L
 import torch
 import torch.nn as nn
+import numpy as np
+import wandb
+
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from prediction.models.powerbev import PowerBEV
 from prediction.powerformer.predictor import PowerFormer
 from prediction.losses import SegmentationLoss, SpatialRegressionLoss
 from prediction.metrics import IntersectionOverUnion, PanopticMetric
 from prediction.utils.instance import predict_instance_segmentation
+from prediction.utils.visualisation import visualise_output
 
 
 class TrainingModule(L.LightningModule):
@@ -109,6 +114,7 @@ class TrainingModule(L.LightningModule):
         loss[f'segmentation_uncertainty'] = 0.5 * self.model.segmentation_weight
 
         flow_factor = 0.1 / (2*torch.exp(self.model.flow_weight))
+
         loss['instance_flow'] = flow_factor * self.losses_fn['instance_flow'](
             output['instance_flow'], 
             labels['flow']
@@ -159,18 +165,26 @@ class TrainingModule(L.LightningModule):
         output, labels, loss = self.shared_step(batch, True)
         self.training_step_count += 1
         for key, value in loss.items():
-            self.log('train_loss/' + key, value, batch_size = self.bs)
+            self.log('train_loss/' + key, value, batch_size = self.bs, sync_dist=True)
+
+        # if self.global_step % self.cfg.LOGGING_INTERVAL == 0:
+        #     video_sample = visualise_output(labels,output,self.cfg)[0,0]
+            # Change grom 3HW to HW3 unsing numpy
+            # converted_img = np.moveaxis(video_sample, 0, -1)
+            # wandb.log({"train_examples": [wandb.Image(video_sample, caption="Train Example")]})
+            # self.logger.log_image('train_examples/', video_sample[0,...].tolist())
+
         return sum(loss.values())
     
     def validation_step(self, batch, batch_idx):
         output, labels, loss = self.shared_step(batch, False)
         for key, value in loss.items():
-            self.log('val_loss/' + key, value, batch_size = self.bs)
+            self.log('val_loss/' + key, value, batch_size = self.bs, sync_dist=True)
 
     def test_step(self, batch, batch_idx):
         output, labels, loss = self.shared_step(batch, False)
         for key, value in loss.items():
-            self.log('test_loss/' + key, value, batch_size = self.bs)
+            self.log('test_loss/' + key, value, batch_size = self.bs, sync_dist=True)
 
     def shared_epoch_end(self, is_train):
             # Log per class iou metrics
@@ -180,7 +194,7 @@ class TrainingModule(L.LightningModule):
                 scores = self.metric_iou_val.compute()
                 
                 for key, value in zip(class_names, scores):
-                    self.log('metrics/val_iou_' + key, value, batch_size = self.bs)
+                    self.log('metrics/val_iou_' + key, value, batch_size = self.bs, sync_dist=True)
                     print(f"val_iou_{key}: {value}")
                 self.metric_iou_val.reset()
 
@@ -189,11 +203,11 @@ class TrainingModule(L.LightningModule):
                 for key, value in scores.items():
                     for instance_name, score in zip(class_names, value):
                         if instance_name != 'background':
-                            self.log(f'metrics/val_{key}_{instance_name}', score.item(), batch_size = self.bs)
+                            self.log(f'metrics/val_{key}_{instance_name}', score.item(), batch_size = self.bs, sync_dist=True)
                             print(f"val_{key}_{instance_name}: {score.item()}")
                         # Log VPQ metric for the model checkpoint monitor 
                         if key == 'pq' and instance_name == 'dynamic':
-                            self.log('vpq', score.item(), batch_size = self.bs)
+                            self.log('vpq', score.item(), batch_size = self.bs, sync_dist=True)
                 self.metric_panoptic_val.reset()
 
                 print("========================== Runtime ==========================")
@@ -207,8 +221,8 @@ class TrainingModule(L.LightningModule):
                 print("=============================================================")
                 self.perception_time, self.prediction_time, self.postprocessing_time = [], [], []
 
-            self.log('weights/segmentation_weight', 1 / (torch.exp(self.model.segmentation_weight)))
-            self.log('weights/flow_weight', 1 / (2 * torch.exp(self.model.flow_weight)))
+            self.log('weights/segmentation_weight', 1 / (torch.exp(self.model.segmentation_weight)), sync_dist=True)
+            self.log('weights/flow_weight', 1 / (2 * torch.exp(self.model.flow_weight)), sync_dist=True)
 
     def on_train_epoch_end(self):
         self.shared_epoch_end(True)
@@ -224,6 +238,12 @@ class TrainingModule(L.LightningModule):
         optimizer = torch.optim.Adam(
             params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
         )
-
-        return optimizer
+        scheduler = {
+            'scheduler': ReduceLROnPlateau(optimizer,
+                                           mode='min', factor=0.1, patience=2),
+            'monitor': 'val_loss/segmentation',
+            'interval': 'epoch',
+            'frequency': 1
+        }
+        return [optimizer], [scheduler]
 
