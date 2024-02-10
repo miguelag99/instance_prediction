@@ -31,6 +31,7 @@ def main(args):
     ) 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+        os.makedirs(os.path.join(save_dir, 'checkpoints'))
 
     # Set random seed for reproducibility
     seed = 42
@@ -56,7 +57,7 @@ def main(args):
 
     wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
                              log_model=True, name=cfg.TAG)
-    chkpt_callback = ModelCheckpoint(dirpath=save_dir,
+    chkpt_callback = ModelCheckpoint(dirpath=os.path.join(save_dir,'checkpoints'),
                                      monitor='vpq',
                                      save_top_k=5,
                                      mode='max',

@@ -3,7 +3,7 @@ import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'powerformer_lrsched_image_log',
+    TAG = 'powerformer_tiny_v2',
     WANDB_PROJECT = 'new_code_tests',
 
     ACCELERATOR = "cuda",
@@ -125,7 +125,7 @@ Config = SimpleNamespace(
     FUTURE_DISCOUNT = 0.95,
 
     OPTIMIZER = SimpleNamespace(
-        LR = 1e-3,
+        LR = 3e-4,
         WEIGHT_DECAY = 1e-7,
     ),
 

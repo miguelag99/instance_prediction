@@ -1,14 +1,14 @@
 USER_NAME := perception
-TAG_NAME := v0.0.1
+TAG_NAME := v1
 IMAGE_NAME := instance_pred
 WANDB_API_KEY := $(shell echo $$WANDB_API_KEY)
+DGX_GPU_ID = '4,5'
 
 UID := 1000
 GID := 1000
 
 
 define run_docker
-	clear && \
 	docker run -it --rm \
 		--net host \
 		--gpus all \
@@ -27,7 +27,7 @@ endef
 define run_docker_dgx
 	docker run -it --rm \
 		--net host \
-		--gpus '"device=4,5"'\
+		--gpus '"device=$(DGX_GPU_ID)"'\
 		--ipc host \
 		--ulimit memlock=-1 \
 		--ulimit stack=67108864 \
@@ -35,7 +35,7 @@ define run_docker_dgx
 		-u $(USER_NAME) \
 		-v /home/miguel.antunes/workspace:/home/$(USER_NAME)/workspace \
 		-v /home/miguel.antunes/nuscenes/:/home/$(USER_NAME)/Datasets/nuscenes \
-		$(IMAGE_NAME):$(TAG_NAME) \
+		$(IMAGE_NAME):$(TAG_NAME)_GPU$(DGX_GPU_ID) \
 		/bin/bash -c $(1)
 endef
 
