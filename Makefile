@@ -2,7 +2,7 @@ USER_NAME := perception
 TAG_NAME := v1
 IMAGE_NAME := instance_pred
 WANDB_API_KEY := $(shell echo $$WANDB_API_KEY)
-DGX_GPU_ID = '4,5'
+DGX_GPU_ID = 4
 
 UID := 1000
 GID := 1000
@@ -35,7 +35,7 @@ define run_docker_dgx
 		-u $(USER_NAME) \
 		-v /home/miguel.antunes/workspace:/home/$(USER_NAME)/workspace \
 		-v /home/miguel.antunes/nuscenes/:/home/$(USER_NAME)/Datasets/nuscenes \
-		$(IMAGE_NAME):$(TAG_NAME)_GPU$(DGX_GPU_ID) \
+		$(IMAGE_NAME):$(TAG_NAME) \
 		/bin/bash -c $(1)
 endef
 

@@ -3,6 +3,7 @@ import socket
 import time
 import argparse
 import numpy as np
+import random
 
 import lightning as L
 import torch
@@ -35,10 +36,12 @@ def main(args):
 
     # Set random seed for reproducibility
     seed = 42
+    L.seed_everything(seed, workers=True)
     torch.manual_seed(seed)
     np.random.seed(seed)
+    random.seed(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
     
     trainloader, valloader = prepare_dataloaders(cfg)
 

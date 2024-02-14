@@ -256,7 +256,6 @@ class NuscenesDataset(Dataset):
                 image = self.normalise_image(image)
 
                 # Apply data augmentation (resize and crop) to the images.
-                # import pdb; pdb.set_trace()
                 images[i, j, :, :, :] = self.ida(image)
 
                 # Update intrinsics.
@@ -593,28 +592,6 @@ class NuscenesDataset(Dataset):
             return False
         return True
     
-
-
-# config = SimpleNamespace(
-#     mode = "train",
-#     dataset = SimpleNamespace(
-#         version = "v1.0-trainval",
-#         dataroot = "/home/perception/Datasets/nuscenes/trainval",
-#     ),
-
-#     n_frames = 1,
-#     n_cameras = 6,
-#     original_width = 1600,
-#     original_height = 900,
-#     resized_width = 480,
-#     resized_height = 270,
-#     top_crop = 46,
-
-#     cameras = ['CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT',
-#             'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT'],
-
-
-# )
 
 
 # dataset = NuscenesDataset(config)
