@@ -22,8 +22,8 @@ def prepare_dataloaders(cfg, return_dataset=False):
      """ 
 
     # TODO: pass nuscenes object to each loader instead of creating it inside? 
-    train_data = NuscenesDataset(cfg, mode = 'train')
-    val_data = NuscenesDataset(cfg, mode = 'val')
+    train_data = NuscenesDataset(cfg, mode = 'train', return_orig_images=False)
+    val_data = NuscenesDataset(cfg, mode = 'val', return_orig_images=False)
 
     if cfg.DATASET.VERSION == 'mini':
         train_data.indices = train_data.indices[:10]
@@ -31,7 +31,7 @@ def prepare_dataloaders(cfg, return_dataset=False):
      
     nworkers = cfg.N_WORKERS
     train_loader = torch.utils.data.DataLoader(
-        train_data, batch_size=cfg.BATCHSIZE, shuffle=False,
+        train_data, batch_size=cfg.BATCHSIZE, shuffle=True,
         num_workers=nworkers, pin_memory=True, drop_last=True
     )
     val_loader = torch.utils.data.DataLoader(

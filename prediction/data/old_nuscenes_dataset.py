@@ -16,7 +16,7 @@ from torchvision.io import read_image
 from pyquaternion import Quaternion
 
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import Any
 
 from prediction.utils.geometry import (update_intrinsics, convert_egopose_to_matrix_numpy,
                                        invert_matrix_egopose_numpy, mat2pose_vec, calculate_birds_eye_view_parameters)
@@ -24,78 +24,26 @@ from prediction.utils.instance import convert_instance_mask_to_center_and_offset
 
 class ImageDataAugmentator:
 
-    def __init__(self, config: SimpleNamespace,
-                 mode: Literal['train', 'val', 'test'] = 'train') -> None:
+    def __init__(self, config: SimpleNamespace, mode = 'train') -> None:
 
         self.config = config
         self.mode = mode
+
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        RH = int(self.config.IMAGE.ORIGINAL_HEIGHT * self.config.IMAGE.RESIZE_SCALE)
+        RW = int(self.config.IMAGE.ORIGINAL_WIDTH * self.config.IMAGE.RESIZE_SCALE)
+        TC = self.config.IMAGE.TOP_CROP
         
-        self.mean = [0.485, 0.456, 0.406]
-        self.std = [0.229, 0.224, 0.225]
+        # Resize and top crop.
+        image = F.resize(image, (RH, RW), antialias=True)
+        image = F.crop(image, TC, 0, RH - TC, RW)
 
-        self.p_grid = 1.0
-
-
-    def __call__(self, images: torch.Tensor, intrinsics: torch.Tensor, 
-                 ret_original_im: bool = False) -> torch.Tensor:
-              
-        T, N, C, H, W = images.shape
-
-        OH, OW = self.config.IMAGE.ORIGINAL_DIM
-        FH, FW = self.config.IMAGE.FINAL_DIM
-
-        # Parameters for resize and crop.
-        resize = max(FH / OH, FW / OW)
-        RH, RW = (int(OH * resize), int(OW * resize))
-        TC = RH - FH
-
-        # Resize and crop the images. TODO
-        images = images.view(T * N, C, H, W)
-        images = F.resize(images, (RH, RW), antialias=True)
-        images = F.crop(images, TC, 0, RH - TC, RW)
-        images = images.view(T, N, C, RH - TC, RW)
-        
-        # Update intrinsics.
-        updated_intrinsics = intrinsics.clone()
-        
-        updated_intrinsics[:, :, 0, 0] *= resize
-        updated_intrinsics[:, :, 0, 2] *= resize
-        updated_intrinsics[:, :, 1, 1] *= resize
-        updated_intrinsics[:, :, 1, 2] *= resize
-        
-        updated_intrinsics[:, :, 0, 2] -= 0   # No left crop
-        updated_intrinsics[:, :, 1, 2] -= TC
-        
-        images = images / 255.0
-        if ret_original_im:
-            original_images = images.clone()
-        else:
-            original_images = None
-                
-        if self.mode == 'train':
-            # Normalize the image and color jitter.
-            images = F.adjust_brightness(images, torch.rand(1).item() + 0.5)
-                      
-            # Grid mask. Cover the image with a grid of black squares.
-            if torch.rand(1).item() <= self.p_grid:
-                n_squares = torch.randint(0, 12, size=(1,)).item()
-                rx = torch.randint(0, images.shape[-2], size=(n_squares,))
-                ry = torch.randint(0, images.shape[-1], size=(n_squares,))
-                i = torch.randint(0, 6, size=(n_squares,))
-
-                for sx, sy, si in zip(rx, ry, i):
-                    images[:, si, :, sx:sx+20, sy:sy+20] = 0.0
-            
-            
-        images = F.normalize(images, self.mean, self.std)
-            
-        return images, updated_intrinsics, original_images
-
+        return image
                 
 
 class NuscenesDataset(Dataset):
 
-    def __init__(self, config: SimpleNamespace, mode = 'train', return_orig_images: bool = True) -> None:
+    def __init__(self, config: SimpleNamespace, mode = 'train') -> None:
         
         self.nusc = NuScenes(
             version=config.DATASET.VERSION,
@@ -128,14 +76,13 @@ class NuscenesDataset(Dataset):
 
         
 
-        # self.normalise_image = torchvision.transforms.Compose(
-        #     [
-        #     # torchvision.transforms.ToTensor(),
-        #     torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        #     ]
-        # )
-        self.return_orig_images = return_orig_images
-        self.ida = ImageDataAugmentator(config, self.mode)
+        self.normalise_image = torchvision.transforms.Compose(
+            [
+            # torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+        self.ida = ImageDataAugmentator(config,self.mode)
 
 
     def _get_scenes(self) -> list:
@@ -243,11 +190,13 @@ class NuscenesDataset(Dataset):
         T = self.sequence_length
         N = self.config.DATASET.N_CAMERAS
         H1 = self.config.IMAGE.ORIGINAL_HEIGHT
+        H2 = int(H1*scale_ratio)
         W1 = self.config.IMAGE.ORIGINAL_WIDTH
+        W2 = int(W1*scale_ratio)
         TC = self.config.IMAGE.TOP_CROP
         CAMERAS = self.config.IMAGE.NAMES
 
-        images = torch.zeros((T, N, 3, H1, W1), dtype=torch.float)
+        images = torch.zeros((T, N, 3, H2 - TC, W2), dtype=torch.float)
         intrinsics = torch.zeros((T, N, 3, 3), dtype=torch.float)
         extrinsics = torch.zeros((T, N, 4, 4), dtype=torch.float)
 
@@ -301,20 +250,27 @@ class NuscenesDataset(Dataset):
                 #     cv2.cvtColor(cv2.imread(image_filename), cv2.COLOR_BGR2RGB)
                 #     .transpose(2, 0, 1)
                 # ).float()
-                images[i,j,:,:] = read_image(image_filename).float()
+                image = read_image(image_filename).float()
 
-                # # Normalize image.
+                # Apply data augmentation (resize and crop) to the images.
+                images[i, j, :, :, :] = self.normalise_image(self.ida(image))
+                
+                # Normalize image.
                 # image = self.normalise_image(image)
 
-                intrinsics[i,j,:,:] = intrinsic
+                # Update intrinsics.
+                top_crop = TC
+                left_crop = 0   
+                intrinsics[i,j,:,:] = update_intrinsics(
+                    intrinsic, top_crop, left_crop, 
+                    scale_width=self.config.IMAGE.RESIZE_SCALE,
+                    scale_height=self.config.IMAGE.RESIZE_SCALE
+                )
+
                 extrinsics[i,j,:,:] = sensor_to_lidar
 
 
-                # # Apply data augmentation to the images and update instrinsics.
-                
-        images, intrinsics, original_img = self.ida(images, intrinsics, self.return_orig_images)
-
-        return images, intrinsics, extrinsics, original_img
+        return images, intrinsics, extrinsics
 
     def record_instance(self, sample_info_indices):
         """
@@ -449,7 +405,6 @@ class NuscenesDataset(Dataset):
                     'rotation': instance_annotation['rotation'][pointer],
                     'size': instance_annotation['size'],
                 }
-
                 poly_region, z = self._get_poly_region_in_image(annotation, egopose_list[self.config.TIME_RECEPTIVE_FIELD - 1]) 
                 if isinstance(poly_region, np.ndarray):
                     if i >= self.config.TIME_RECEPTIVE_FIELD and instance_token not in visible_instance_set:
@@ -520,6 +475,7 @@ class NuscenesDataset(Dataset):
                 images: torch.Tensor<float> (N, 3, H, W) or (T, N, 3, H, W)
                     normalized images with T = config.n_frames and N = config.n_cameras.
         """
+
         # Parameters.
         T = self.sequence_length
         N = self.config.DATASET.N_CAMERAS
@@ -536,16 +492,14 @@ class NuscenesDataset(Dataset):
         # extra dimension when indexing one element (POSSIBLE CAUSE OF ERRORS).
 
         sample_info_indices = self.indices[index].tolist()
-        data["image"], data["intrinsics"], data["extrinsics"], orig_img = self.get_input_data(sample_info_indices)
-
-        if orig_img is not None and self.return_orig_images:
-            data["orig_image"] = orig_img
+        data["image"], data["intrinsics"], data["extrinsics"] = self.get_input_data(sample_info_indices)
 
         # Record instance information.
         instance_map, instance_dict, egopose_list, visible_instance_set = self.record_instance(sample_info_indices)
 
         # Obtain future egomotion.
         data["future_egomotion"] = self.get_future_egomotion(sample_info_indices)
+
 
         # Refine the generated instance polygons    
         for token in instance_dict.keys():

@@ -3,14 +3,14 @@ import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'powerformer_tiny_v2',
+    TAG = 'powerformer_tiny_v2_data_aug',
     WANDB_PROJECT = 'new_code_tests',
 
     ACCELERATOR = "cuda",
     GPUS = 0,  # which gpus to use
     DEVICES = "auto", # how many gpus to use, auto for all available
-    PRECISION = '32',  # 16-mixed or 32bit
-    BATCHSIZE = 2,
+    PRECISION = '16-mixed',  # 16-mixed or 32bit
+    BATCHSIZE = 1,
     EPOCHS = 20,
 
     N_WORKERS = 3,
@@ -37,6 +37,7 @@ Config = SimpleNamespace(
 
     IMAGE = SimpleNamespace(
         FINAL_DIM = (224, 480),
+        ORIGINAL_DIM = (900, 1600),
         RESIZE_SCALE = 0.3,
         TOP_CROP = 46,
         ORIGINAL_HEIGHT = 900 ,  # Original input RGB camera height
@@ -67,11 +68,12 @@ Config = SimpleNamespace(
             USE_DEPTH_DISTRIBUTION = True,
         ),
         STCONV = SimpleNamespace(
-            LATENT_DIM = 16,
+            LATENT_DIM = 16, # 16
             NUM_FEATURES = [16, 24, 32, 48, 64],
-            NUM_BLOCKS = 3,
+            NUM_BLOCKS = 4,
             INPUT_EGOPOSE = True,
         ),
+        # Tiny
         SEGFORMER = SimpleNamespace(
             N_ENCODER_BLOCKS = 5,
             DEPTHS = [2, 2, 2, 2, 2],
@@ -82,6 +84,18 @@ Config = SimpleNamespace(
             NUM_ATTENTION_HEADS = [1, 2, 4, 8, 8],
             MLP_RATIOS = [4, 4, 4, 4, 4],
         ),
+   
+        # B0
+        # SEGFORMER = SimpleNamespace(
+        #     N_ENCODER_BLOCKS = 5,
+        #     DEPTHS = [2, 2, 2, 2, 2],
+        #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
+        #     HIDDEN_SIZES = [32, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
+        #     PATCH_SIZES = [7, 7, 3, 3, 3],
+        #     STRIDES = [2, 2, 2, 2, 2],
+        #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
+        #     MLP_RATIOS = [4, 4, 4, 4, 4],
+        # ),
         TEMPORAL_MODEL = SimpleNamespace(
             NAME = 'temporal_block',  # type of temporal model
             START_OUT_CHANNELS = 64,
