@@ -119,9 +119,9 @@ class PowerBEV(nn.Module):
             x.clone(), future_egomotion,
             mode='bilinear', spatial_extent=self.spatial_extent,
         )
-
+        
         perception_time = time.time()
-       
+
         # Temporal model
         if self.n_future == 0:
             states = self.temporal_model(x)
@@ -175,7 +175,7 @@ class PowerBEV(nn.Module):
         x = self.encoder(x)
         x = x.view(b, n, *x.shape[1:])
         x = x.permute(0, 1, 3, 4, 5, 2)
-
+        
         return x
 
     def projection_to_birds_eye_view(self, x, geometry):
@@ -241,6 +241,6 @@ class PowerBEV(nn.Module):
 
         geometry = self.get_geometry(intrinsics, extrinsics)
         x = self.encoder_forward(x)
-        x = self.projection_to_birds_eye_view(x, geometry)
+        x = self.projection_to_birds_eye_view(x, geometry)     
         x = unpack_sequence_dim(x, b, s)
         return x

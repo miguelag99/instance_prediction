@@ -8,7 +8,7 @@ import wandb
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from prediction.models.powerbev import PowerBEV
-from prediction.powerformer.predictor import PowerFormer
+from prediction.powerformer.predictor import PowerFormer, PowerFormer_dualenc
 from prediction.losses import SegmentationLoss, SpatialRegressionLoss
 from prediction.metrics import IntersectionOverUnion, PanopticMetric
 from prediction.utils.instance import predict_instance_segmentation
@@ -30,6 +30,8 @@ class TrainingModule(L.LightningModule):
             self.model = PowerBEV(self.cfg)
         elif self.cfg.MODEL.NAME == 'powerformer':
             self.model = PowerFormer(self.cfg)
+        elif self.cfg.MODEL.NAME == 'powerformer_dualenc':
+            self.model = PowerFormer_dualenc(self.cfg)
         else:
             raise NotImplementedError      
 

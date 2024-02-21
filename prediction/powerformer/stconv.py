@@ -56,7 +56,20 @@ class MultiBranchSTconv(nn.Module):
     @staticmethod
     def head_forward(x, head):
         return head(x)
+
+# TODO: if this block works correctly, add the dual argument to MultiBranchSTconv and remove this class   
+class MultiBranchSTconv_dualencoder(MultiBranchSTconv):
+    def __init__(self, cfg, in_channels):
+        super().__init__(cfg, in_channels)
+    def forward(self,x1,x2):
+        output = {}
+        segmentation_branch_output = self.branch_forward(x1, self.segmentation_branch)
+        output['segmentation'] = self.head_forward(segmentation_branch_output, self.segmentation_head)
         
+        flow_branch_output = self.branch_forward(x2, self.flow_branch)
+        output['instance_flow'] = self.head_forward(flow_branch_output, self.flow_head)
+        
+        return output 
         
 class STconv(torch.nn.Module):
     def __init__(

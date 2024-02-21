@@ -3,7 +3,7 @@ import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'powerformer_tiny_v2_data_aug',
+    TAG = 'powerformer_tiny_v2_data_aug_dualenc',
     WANDB_PROJECT = 'new_code_tests',
 
     ACCELERATOR = "cuda",
@@ -19,6 +19,7 @@ Config = SimpleNamespace(
 
     PRETRAINED = SimpleNamespace(
         LOAD_WEIGHTS = False,
+        RESUME_TRAINING = False,
         PATH = '',
     ),
 
@@ -60,7 +61,7 @@ Config = SimpleNamespace(
     ),
 
     MODEL = SimpleNamespace(
-        NAME = 'powerformer',  # 'powerbev' or 'powerformer'
+        NAME = 'powerbev',  # 'powerbev' or 'powerformer' or 'powerformer_dualenc'
         ENCODER = SimpleNamespace(
             DOWNSAMPLE = 8,
             NAME = 'efficientnet-b4',

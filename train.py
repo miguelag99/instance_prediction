@@ -47,6 +47,10 @@ def main(args):
 
     l_module = TrainingModule(hparams, cfg)
 
+    if cfg.PRETRAINED.RESUME_TRAINING:
+        # TODO: Load training state from checkpoint
+        pass
+
     if cfg.PRETRAINED.LOAD_WEIGHTS:
         # Load single-image instance segmentation model.
         pretrained_model_weights = torch.load(
@@ -55,8 +59,7 @@ def main(args):
 
         l_module.load_state_dict(pretrained_model_weights, strict=False)
         print(f'Loaded single-image model weights from {cfg.PRETRAINED.PATH}')
-
-
+  
 
     wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
                              log_model=True, name=cfg.TAG)

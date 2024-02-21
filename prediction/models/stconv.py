@@ -40,13 +40,13 @@ class MultiBranchSTconv(torch.nn.Module):
 
     def forward(self, x):
         output = {}
-
+        
         segmentation_branch_output = self.branch_forward(x, self.segmentation_branch)
         output['segmentation'] = self.head_forward(segmentation_branch_output, self.segmentation_head)
         
         flow_branch_output = self.branch_forward(x, self.flow_branch)
         output['instance_flow'] = self.head_forward(flow_branch_output, self.flow_head)
-        
+
         return output
     
     @staticmethod
@@ -168,7 +168,6 @@ class STPredictor(nn.Module):
 
     def forward(self, x):
         assert len(x) == len(self.predictor), f'The number of input feature tensors ({len(x)}) must be the same as the number of STPredictor blocks {len(self.predictor)}.'
-        
         y = []
         for i in range(len(x)):
             b, _, c, _, _ = x[i].shape
@@ -243,6 +242,7 @@ class Head(nn.Module):
         y = y.reshape(-1, *y.shape[2:])
         y = self.head(y)
         y = self.last_conv(y)
+                
         if self.sigmoid:
             y = self.last_sigmoid(y)
         return y.reshape(b, t, *y.shape[1:])
