@@ -27,11 +27,17 @@ class TrainingModule(L.LightningModule):
         self.n_classes = len(self.cfg.SEMANTIC_SEG.WEIGHTS)
 
         if self.cfg.MODEL.NAME == 'powerbev':
+            from prediction.models.powerbev import PowerBEV
             self.model = PowerBEV(self.cfg)
         elif self.cfg.MODEL.NAME == 'powerformer':
+            from prediction.powerformer.predictor import PowerFormer
             self.model = PowerFormer(self.cfg)
         elif self.cfg.MODEL.NAME == 'powerformer_dualenc':
+            from prediction.powerformer.predictor import  PowerFormer_dualenc
             self.model = PowerFormer_dualenc(self.cfg)
+        elif self.cfg.MODEL.NAME == 'full_segformer':
+            from prediction.powerformer.predictor import FullSegformer
+            self.model = FullSegformer(self.cfg)
         else:
             raise NotImplementedError      
 

@@ -84,6 +84,7 @@ Config = SimpleNamespace(
             STRIDES = [2, 2, 2, 2, 2],
             NUM_ATTENTION_HEADS = [1, 2, 4, 8, 8],
             MLP_RATIOS = [4, 4, 4, 4, 4],
+            HEAD_DIM_MULTIPLIER = 4,
         ),
    
         # B0
