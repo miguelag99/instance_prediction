@@ -3,17 +3,17 @@ import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'powerformer_tiny_v2_data_aug_dualenc',
+    TAG = 'fullsegformer_tiny_v2',
     WANDB_PROJECT = 'new_code_tests',
 
     ACCELERATOR = "cuda",
     GPUS = 0,  # which gpus to use
     DEVICES = "auto", # how many gpus to use, auto for all available
     PRECISION = '16-mixed',  # 16-mixed or 32bit
-    BATCHSIZE = 1,
+    BATCHSIZE = 2,
     EPOCHS = 20,
 
-    N_WORKERS = 3,
+    N_WORKERS = 2,
     VIS_INTERVAL = 500,
     LOGGING_INTERVAL = 100,
 
@@ -61,7 +61,7 @@ Config = SimpleNamespace(
     ),
 
     MODEL = SimpleNamespace(
-        NAME = 'powerbev',  # 'powerbev' or 'powerformer' or 'powerformer_dualenc'
+        NAME = 'full_segformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
         ENCODER = SimpleNamespace(
             DOWNSAMPLE = 8,
             NAME = 'efficientnet-b4',
@@ -98,6 +98,19 @@ Config = SimpleNamespace(
         #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
         #     MLP_RATIOS = [4, 4, 4, 4, 4],
         # ),
+
+        # B1
+        # SEGFORMER = SimpleNamespace(
+        #     N_ENCODER_BLOCKS = 5,
+        #     DEPTHS = [2, 2, 2, 2, 2],
+        #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
+        #     HIDDEN_SIZES = [64, 64, 128, 320, 512],  # Must be equal to STCONV.NUMFEATURES
+        #     PATCH_SIZES = [7, 7, 3, 3, 3],
+        #     STRIDES = [2, 2, 2, 2, 2],
+        #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
+        #     MLP_RATIOS = [4, 4, 4, 4, 4],
+        # ),        
+        
         TEMPORAL_MODEL = SimpleNamespace(
             NAME = 'temporal_block',  # type of temporal model
             START_OUT_CHANNELS = 64,
@@ -141,7 +154,8 @@ Config = SimpleNamespace(
     FUTURE_DISCOUNT = 0.95,
 
     OPTIMIZER = SimpleNamespace(
-        LR = 3e-4,
+        # LR = 3e-4,
+        LR = 6e-5,
         WEIGHT_DECAY = 1e-7,
     ),
 
@@ -150,6 +164,6 @@ Config = SimpleNamespace(
     VISUALIZATION = SimpleNamespace(
         OUTPUT_PATH = './visualization_outputs',
         SAMPLE_NUMBER = 1000,
-        VIS_GT = False,
+        VIS_GT = True,
     )
 )

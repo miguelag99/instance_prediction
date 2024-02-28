@@ -5,10 +5,8 @@ import torch.nn as nn
 import numpy as np
 import wandb
 
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, PolynomialLR
 
-from prediction.models.powerbev import PowerBEV
-from prediction.powerformer.predictor import PowerFormer, PowerFormer_dualenc
 from prediction.losses import SegmentationLoss, SpatialRegressionLoss
 from prediction.metrics import IntersectionOverUnion, PanopticMetric
 from prediction.utils.instance import predict_instance_segmentation
@@ -247,8 +245,10 @@ class TrainingModule(L.LightningModule):
             params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
         )
         scheduler = {
-            'scheduler': ReduceLROnPlateau(optimizer,
-                                           mode='min', factor=0.1, patience=2),
+            # 'scheduler': ReduceLROnPlateau(optimizer,
+            #                                mode='min', factor=0.1, patience=2),
+            'scheduler': PolynomialLR(optimizer, total_iters=self.cfg.EPOCHS+1,
+                                      power=1, last_epoch=-1),
             'monitor': 'val_loss/segmentation',
             'interval': 'epoch',
             'frequency': 1

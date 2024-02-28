@@ -473,7 +473,7 @@ class NuscenesDataset(Dataset):
     def generate_flow(flow, instance_img, instance, instance_id):
         """
         Generate ground truth for the flow of each instance based on instance segmentation.
-        """
+        """        
         _, h, w = instance_img.shape
         x, y = torch.meshgrid(torch.arange(h, dtype=torch.float), torch.arange(w, dtype=torch.float), indexing='ij')
         grid = torch.stack((x, y), dim=0)
