@@ -62,10 +62,10 @@ def main(args):
   
 
     wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
-                             log_model=True, name=cfg.TAG)
+                             log_model=False, name=cfg.TAG)
     chkpt_callback = ModelCheckpoint(dirpath=os.path.join(save_dir,'checkpoints'),
                                      monitor='vpq',
-                                     save_top_k=5,
+                                     save_top_k=3,
                                      mode='max',
                                      filename='model-{epoch}-{vpq:.4f}')
 

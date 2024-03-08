@@ -42,34 +42,6 @@ class PowerFormer(nn.Module):
                  model_name = self.cfg.MODEL.ENCODER.NAME,
                  img_size = self.cfg.IMAGE.FINAL_DIM,
                  )
-                
-        # timesformer_cfg = TimesformerConfig(
-        #     image_size = self.feature_width,
-        #     patch_size = self.cfg.MODEL.TIMESFORMER.PATCH_SIZE,
-        #     num_channels = self.cfg.MODEL.ENCODER.OUT_CHANNELS,
-        #     num_frames = self.cfg.TIME_RECEPTIVE_FIELD,
-        #     num_attention_heads = self.cfg.MODEL.TIMESFORMER.ATTN_HEADS,
-        #     num_hidden_layers = self.cfg.MODEL.TIMESFORMER.HIDDEN_LAYERS,
-        #     hidden_size = self.cfg.MODEL.TIMESFORMER.HIDDEN_SIZE,
-        #     intermediate_size = self.cfg.MODEL.TIMESFORMER.INTERM_SIZE,
-        #     return_dict = False
-        # )
-        # self.attention_module = TimesformerModel(timesformer_cfg)
-
-        # pvt_config = PvtConfig(
-        #     image_size = int(feature_width*up_ratio),
-        #     num_channels = self.cfg.TIME_RECEPTIVE_FIELD*self.cfg.MODEL.ENCODER.OUT_CHANNELS,
-        #     num_encoder_blocks = self.cfg.MODEL.PVT.N_ENCODER_BLOCKS,
-        #     depths = self.cfg.MODEL.PVT.DEPTHS,
-        #     sequence_reduction_ratios = self.cfg.MODEL.PVT.SEQUENCE_REDUCTION_RATIOS,
-        #     hidden_sizes = self.cfg.MODEL.PVT.HIDDEN_SIZES,
-        #     patch_sizes = self.cfg.MODEL.PVT.PATCH_SIZES,
-        #     strides = self.cfg.MODEL.PVT.STRIDES,
-        #     num_attention_heads = self.cfg.MODEL.PVT.NUM_ATTENTION_HEADS,
-        #     mlp_ratios = self.cfg.MODEL.PVT.MLP_RATIOS,
-        #     output_hidden_states = True,
-        # )
-        # self.pvt = PvtModel(pvt_config)
 
         segformer_dims = self.cfg.MODEL.SEGFORMER.HIDDEN_SIZES
     
@@ -277,12 +249,7 @@ class FullSegformer(nn.Module):
                  model_name = self.cfg.MODEL.ENCODER.NAME,
                  img_size = self.cfg.IMAGE.FINAL_DIM,
                  )
-                
-        segformer_dims = self.cfg.MODEL.SEGFORMER.HIDDEN_SIZES
-    
-        ## Multiply each element by the receptive field unsing map function
-        segformer_dims = list(map(lambda x: x*self.receptive_field, segformer_dims))
-       
+                      
         segformer_out_dim = len(self.cfg.SEMANTIC_SEG.WEIGHTS)*(self.cfg.N_FUTURE_FRAMES + 2)*self.cfg.MODEL.SEGFORMER.HEAD_DIM_MULTIPLIER
        
         segformer_config = SegformerConfig(
@@ -291,7 +258,7 @@ class FullSegformer(nn.Module):
             num_encoder_blocks = self.cfg.MODEL.SEGFORMER.N_ENCODER_BLOCKS,
             depths = self.cfg.MODEL.SEGFORMER.DEPTHS,
             sr_ratios = self.cfg.MODEL.SEGFORMER.SEQUENCE_REDUCTION_RATIOS,
-            hidden_sizes = segformer_dims,
+            hidden_sizes = self.cfg.MODEL.SEGFORMER.HIDDEN_SIZES, # No receptive field multiplication
             patch_sizes = self.cfg.MODEL.SEGFORMER.PATCH_SIZES,
             strides = self.cfg.MODEL.SEGFORMER.STRIDES,
             num_attention_heads = self.cfg.MODEL.SEGFORMER.NUM_ATTENTION_HEADS,
@@ -302,15 +269,17 @@ class FullSegformer(nn.Module):
         )
         
         # TODO: remove last layer to avoid classification ??
+        kernel = self.cfg.MODEL.SEGFORMER.HEAD_KERNEL
+        stride = self.cfg.MODEL.SEGFORMER.HEAD_STRIDE
         self.segmentation_branch = SegformerForSemanticSegmentation(segformer_config)
         self.conv_seg = nn.ConvTranspose2d(segformer_out_dim,
                                            len(self.cfg.SEMANTIC_SEG.WEIGHTS)*(self.cfg.N_FUTURE_FRAMES + 2),
-                                           kernel_size=2, stride=2)
+                                           kernel_size=kernel, stride=stride)
         
         # segformer_config.num_labels = 2
         self.flow_branch = SegformerForSemanticSegmentation(segformer_config)
         self.conv_flow = nn.ConvTranspose2d(segformer_out_dim, 2*(self.cfg.N_FUTURE_FRAMES + 2),
-                                            kernel_size=2, stride=2)
+                                            kernel_size=kernel, stride=stride)
         
     def forward(self, x, intrinsics, extrinsics, future_egomotion,  future_distribution_inputs=None, noise=None):
         output = {}
@@ -341,10 +310,10 @@ class FullSegformer(nn.Module):
         # Segformer directly
         seg_out= self.segmentation_branch(x).logits
         flow_out = self.flow_branch(x).logits
-        
+               
         seg_out= self.conv_seg(seg_out)
-        flow_out = self.conv_flow(flow_out)
-                        
+        flow_out = self.conv_flow(flow_out)      
+                                
         output['segmentation'] = seg_out.view(b,self.cfg.N_FUTURE_FRAMES + 2,
                                               len(self.cfg.SEMANTIC_SEG.WEIGHTS), h, w).contiguous()
         output['instance_flow'] = flow_out.view(b,self.cfg.N_FUTURE_FRAMES + 2,

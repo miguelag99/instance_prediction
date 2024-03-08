@@ -75,41 +75,62 @@ Config = SimpleNamespace(
             INPUT_EGOPOSE = True,
         ),
         # Tiny
-        SEGFORMER = SimpleNamespace(
-            N_ENCODER_BLOCKS = 5,
-            DEPTHS = [2, 2, 2, 2, 2],
-            SEQUENCE_REDUCTION_RATIOS = [8, 4, 2, 1, 1],
-            HIDDEN_SIZES = [16, 24, 32, 48, 64],  # Must be equal to STCONV.NUMFEATURES
-            PATCH_SIZES = [7, 3, 3, 3, 3],
-            STRIDES = [2, 2, 2, 2, 2],
-            NUM_ATTENTION_HEADS = [1, 2, 4, 8, 8],
-            MLP_RATIOS = [4, 4, 4, 4, 4],
-            HEAD_DIM_MULTIPLIER = 4,
-        ),
+        # SEGFORMER = SimpleNamespace(
+        #     N_ENCODER_BLOCKS = 5,
+        #     DEPTHS = [2, 2, 2, 2, 2],
+        #     SEQUENCE_REDUCTION_RATIOS = [8, 4, 2, 1, 1],
+        #     HIDDEN_SIZES = [16, 24, 32, 48, 64],  # Must be equal to STCONV.NUMFEATURES
+        #     PATCH_SIZES = [7, 3, 3, 3, 3],
+        #     STRIDES = [2, 2, 2, 2, 2],
+        #     NUM_ATTENTION_HEADS = [1, 2, 4, 8, 8],
+        #     MLP_RATIOS = [4, 4, 4, 4, 4],
+        #     HEAD_DIM_MULTIPLIER = 4,
+        #     HEAD_KERNEL = 2,
+        #     HEAD_STRIDE = 2,
+        # ),
    
         # B0
         # SEGFORMER = SimpleNamespace(
         #     N_ENCODER_BLOCKS = 5,
         #     DEPTHS = [2, 2, 2, 2, 2],
         #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
-        #     HIDDEN_SIZES = [32, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
+        #     HIDDEN_SIZES = [16, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
         #     PATCH_SIZES = [7, 7, 3, 3, 3],
         #     STRIDES = [2, 2, 2, 2, 2],
         #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
         #     MLP_RATIOS = [4, 4, 4, 4, 4],
+        #     HEAD_DIM_MULTIPLIER = 4,
+        #     HEAD_KERNEL = 2,
+        #     HEAD_STRIDE = 2,
+        # ),
+        # SEGFORMER = SimpleNamespace(
+        #     N_ENCODER_BLOCKS = 4,
+        #     DEPTHS = [2, 2, 2, 2],
+        #     SEQUENCE_REDUCTION_RATIOS = [8, 4, 2, 1],
+        #     HIDDEN_SIZES = [32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
+        #     PATCH_SIZES = [7, 3, 3, 3],
+        #     STRIDES = [4, 2, 2, 2],
+        #     NUM_ATTENTION_HEADS = [1, 2, 4, 8],
+        #     MLP_RATIOS = [4, 4, 4, 4],
+        #     HEAD_DIM_MULTIPLIER = 4,
+        #     HEAD_KERNEL = 4,
+        #     HEAD_STRIDE = 4,
         # ),
 
         # B1
-        # SEGFORMER = SimpleNamespace(
-        #     N_ENCODER_BLOCKS = 5,
-        #     DEPTHS = [2, 2, 2, 2, 2],
-        #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
-        #     HIDDEN_SIZES = [64, 64, 128, 320, 512],  # Must be equal to STCONV.NUMFEATURES
-        #     PATCH_SIZES = [7, 7, 3, 3, 3],
-        #     STRIDES = [2, 2, 2, 2, 2],
-        #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
-        #     MLP_RATIOS = [4, 4, 4, 4, 4],
-        # ),        
+        SEGFORMER = SimpleNamespace(
+            N_ENCODER_BLOCKS = 5,
+            DEPTHS = [2, 2, 2, 2, 2],
+            SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
+            HIDDEN_SIZES = [64, 64, 128, 320, 512],  # Must be equal to STCONV.NUMFEATURES
+            PATCH_SIZES = [7, 7, 3, 3, 3],
+            STRIDES = [2, 2, 2, 2, 2],
+            NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
+            MLP_RATIOS = [4, 4, 4, 4, 4],
+            HEAD_DIM_MULTIPLIER = 4,
+            HEAD_KERNEL = 2,
+            HEAD_STRIDE = 2,
+        ),        
         
         TEMPORAL_MODEL = SimpleNamespace(
             NAME = 'temporal_block',  # type of temporal model
