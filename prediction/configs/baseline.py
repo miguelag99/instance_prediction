@@ -10,23 +10,24 @@ Config = SimpleNamespace(
     GPUS = 0,  # which gpus to use
     DEVICES = "auto", # how many gpus to use, auto for all available
     PRECISION = '16-mixed',  # 16-mixed or 32bit
-    BATCHSIZE = 2,
+    BATCHSIZE = 1,
     EPOCHS = 20,
 
-    N_WORKERS = 2,
+    N_WORKERS = 1,
     VIS_INTERVAL = 500,
     LOGGING_INTERVAL = 100,
 
     PRETRAINED = SimpleNamespace(
-        LOAD_WEIGHTS = False,
-        RESUME_TRAINING = False,
-        PATH = '',
+        LOAD_WEIGHTS = True,
+        RESUME_TRAINING = True,
+        PATH = '/home/perception/workspace/training_results/16February2024at18:18:50CET_haln1_powerformer_B0_v2_data_aug/',
+        CKPT = 'checkpoints/model-epoch=16-vpq=0.2966.ckpt',
     ),
-
+    
     DATASET = SimpleNamespace(
-        DATAROOT = '/home/perception/Datasets/nuscenes/trainval',
+        DATAROOT = '/home/perception/Datasets/nuscenes/mini',
         # VERSION = 'trainval',
-        VERSION = 'v1.0-trainval',
+        VERSION = 'v1.0-mini',
         NAME = 'nuscenes',
         IGNORE_INDEX = 255,  # Ignore index when creating flow/offset labels
         FILTER_INVISIBLE_VEHICLES = True,  # Filter vehicles that are not visible from the cameras
@@ -61,7 +62,7 @@ Config = SimpleNamespace(
     ),
 
     MODEL = SimpleNamespace(
-        NAME = 'full_segformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
+        NAME = 'powerformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
         ENCODER = SimpleNamespace(
             DOWNSAMPLE = 8,
             NAME = 'efficientnet-b4',
@@ -90,19 +91,19 @@ Config = SimpleNamespace(
         # ),
    
         # B0
-        # SEGFORMER = SimpleNamespace(
-        #     N_ENCODER_BLOCKS = 5,
-        #     DEPTHS = [2, 2, 2, 2, 2],
-        #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
-        #     HIDDEN_SIZES = [16, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
-        #     PATCH_SIZES = [7, 7, 3, 3, 3],
-        #     STRIDES = [2, 2, 2, 2, 2],
-        #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
-        #     MLP_RATIOS = [4, 4, 4, 4, 4],
-        #     HEAD_DIM_MULTIPLIER = 4,
-        #     HEAD_KERNEL = 2,
-        #     HEAD_STRIDE = 2,
-        # ),
+        SEGFORMER = SimpleNamespace(
+            N_ENCODER_BLOCKS = 5,
+            DEPTHS = [2, 2, 2, 2, 2],
+            SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
+            HIDDEN_SIZES = [16, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
+            PATCH_SIZES = [7, 7, 3, 3, 3],
+            STRIDES = [2, 2, 2, 2, 2],
+            NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
+            MLP_RATIOS = [4, 4, 4, 4, 4],
+            HEAD_DIM_MULTIPLIER = 4,
+            HEAD_KERNEL = 2,
+            HEAD_STRIDE = 2,
+        ),
         # SEGFORMER = SimpleNamespace(
         #     N_ENCODER_BLOCKS = 4,
         #     DEPTHS = [2, 2, 2, 2],
@@ -118,19 +119,19 @@ Config = SimpleNamespace(
         # ),
 
         # B1
-        SEGFORMER = SimpleNamespace(
-            N_ENCODER_BLOCKS = 5,
-            DEPTHS = [2, 2, 2, 2, 2],
-            SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
-            HIDDEN_SIZES = [64, 64, 128, 320, 512],  # Must be equal to STCONV.NUMFEATURES
-            PATCH_SIZES = [7, 7, 3, 3, 3],
-            STRIDES = [2, 2, 2, 2, 2],
-            NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
-            MLP_RATIOS = [4, 4, 4, 4, 4],
-            HEAD_DIM_MULTIPLIER = 4,
-            HEAD_KERNEL = 2,
-            HEAD_STRIDE = 2,
-        ),        
+        # SEGFORMER = SimpleNamespace(
+        #     N_ENCODER_BLOCKS = 5,
+        #     DEPTHS = [2, 2, 2, 2, 2],
+        #     SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
+        #     HIDDEN_SIZES = [64, 64, 128, 320, 512],  # Must be equal to STCONV.NUMFEATURES
+        #     PATCH_SIZES = [7, 7, 3, 3, 3],
+        #     STRIDES = [2, 2, 2, 2, 2],
+        #     NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
+        #     MLP_RATIOS = [4, 4, 4, 4, 4],
+        #     HEAD_DIM_MULTIPLIER = 4,
+        #     HEAD_KERNEL = 2,
+        #     HEAD_STRIDE = 2,
+        # ),        
         
         TEMPORAL_MODEL = SimpleNamespace(
             NAME = 'temporal_block',  # type of temporal model

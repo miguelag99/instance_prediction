@@ -27,12 +27,15 @@ def main(args):
         cfg = baseline_cfg
 
     hparams = namespace_to_dict(cfg)
-    save_dir = os.path.join(
-        cfg.LOG_DIR, time.strftime('%d%B%Yat%H:%M:%S%Z') + '_' + socket.gethostname() + '_' + cfg.TAG
-    ) 
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-        os.makedirs(os.path.join(save_dir, 'checkpoints'))
+    if cfg.PRETRAINED.RESUME_TRAINING:
+        save_dir = cfg.PRETRAINED.PATH
+    else:
+        save_dir = os.path.join(
+            cfg.LOG_DIR, time.strftime('%d%b%Yat%H:%M') + '_' + socket.gethostname() + '_' + cfg.TAG
+        ) 
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+            os.makedirs(os.path.join(save_dir, 'checkpoints'))
 
     # Set random seed for reproducibility
     seed = 42
@@ -45,21 +48,13 @@ def main(args):
     
     trainloader, valloader = prepare_dataloaders(cfg)
 
-    l_module = TrainingModule(hparams, cfg)
-
-    if cfg.PRETRAINED.RESUME_TRAINING:
-        # TODO: Load training state from checkpoint
-        pass
-
     if cfg.PRETRAINED.LOAD_WEIGHTS:
-        # Load single-image instance segmentation model.
-        pretrained_model_weights = torch.load(
-            cfg.PRETRAINED.PATH , map_location='cpu'
-        )['state_dict']
-
-        l_module.load_state_dict(pretrained_model_weights, strict=False)
-        print(f'Loaded single-image model weights from {cfg.PRETRAINED.PATH}')
-  
+        # Load model weights from checkpoint
+        l_module = TrainingModule.load_from_checkpoint(os.path.join(cfg.PRETRAINED.PATH,
+                                                                    cfg.PRETRAINED.CKPT))
+        print(f'Loaded model from {cfg.PRETRAINED.PATH}{cfg.PRETRAINED.CKPT}')
+    else:
+        l_module = TrainingModule(hparams, cfg)
 
     wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
                              log_model=False, name=cfg.TAG)
@@ -83,8 +78,12 @@ def main(args):
         callbacks=[chkpt_callback, lr_monitor],
         profiler='simple',
     )
-
-    trainer.fit(l_module, trainloader, valloader)
+    
+    if cfg.PRETRAINED.RESUME_TRAINING:
+        trainer.fit(l_module, trainloader, valloader,
+                    ckpt_path=os.path.join(cfg.PRETRAINED.PATH,cfg.PRETRAINED.CKPT))
+    else:
+        trainer.fit(l_module, trainloader, valloader)
 
     # Free memory
     del l_module
