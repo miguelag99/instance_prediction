@@ -12,16 +12,27 @@ Config = SimpleNamespace(
     PRECISION = '16-mixed',  # 16-mixed or 32bit
     BATCHSIZE = 1,
     EPOCHS = 20,
+    
+    OPTIMIZER = SimpleNamespace(
+        TYPE = 'AdamW',
+        # LR = 3e-4,
+        LR = 6e-5,
+        # WEIGHT_DECAY = 1e-7,
+        WEIGHT_DECAY = 2e-3,
+    ),
+
+    # GRAD_NORM_CLIP = 5,
+    GRAD_NORM_CLIP = 0.5,
 
     N_WORKERS = 1,
     VIS_INTERVAL = 500,
     LOGGING_INTERVAL = 100,
 
     PRETRAINED = SimpleNamespace(
-        LOAD_WEIGHTS = True,
-        RESUME_TRAINING = True,
-        PATH = '/home/perception/workspace/training_results/16February2024at18:18:50CET_haln1_powerformer_B0_v2_data_aug/',
-        CKPT = 'checkpoints/model-epoch=16-vpq=0.2966.ckpt',
+        LOAD_WEIGHTS = False,
+        RESUME_TRAINING = False,
+        PATH = '/home/perception/workspace/training_results/<>/',
+        CKPT = 'checkpoints/model-epoch=<>.ckpt',
     ),
     
     DATASET = SimpleNamespace(
@@ -62,7 +73,7 @@ Config = SimpleNamespace(
     ),
 
     MODEL = SimpleNamespace(
-        NAME = 'powerformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
+        NAME = 'full_segformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
         ENCODER = SimpleNamespace(
             DOWNSAMPLE = 8,
             NAME = 'efficientnet-b4',
@@ -174,14 +185,6 @@ Config = SimpleNamespace(
     ),
 
     FUTURE_DISCOUNT = 0.95,
-
-    OPTIMIZER = SimpleNamespace(
-        # LR = 3e-4,
-        LR = 6e-5,
-        WEIGHT_DECAY = 1e-7,
-    ),
-
-    GRAD_NORM_CLIP = 5,
 
     VISUALIZATION = SimpleNamespace(
         OUTPUT_PATH = './visualization_outputs',

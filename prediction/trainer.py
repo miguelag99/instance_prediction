@@ -241,9 +241,18 @@ class TrainingModule(L.LightningModule):
 
     def configure_optimizers(self):
         params = self.model.parameters()
-        optimizer = torch.optim.Adam(
-            params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
-        )
+        optim_name = self.cfg.OPTIMIZER.TYPE
+        if optim_name == 'AdamW':
+            optimizer = torch.optim.AdamW(
+                params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
+            )
+        elif optim_name == 'Adam':
+            optimizer = torch.optim.Adam(
+                params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
+            )
+        else:
+            raise NotImplementedError
+
         scheduler = {
             # 'scheduler': ReduceLROnPlateau(optimizer,
             #                                mode='min', factor=0.1, patience=2),
