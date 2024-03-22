@@ -36,6 +36,9 @@ class TrainingModule(L.LightningModule):
         elif self.cfg.MODEL.NAME == 'full_segformer':
             from prediction.powerformer.predictor import FullSegformer
             self.model = FullSegformer(self.cfg)
+        elif self.cfg.MODEL.NAME == 'full_segformer_custom_head':
+            from prediction.powerformer.predictor import FullSegformerCustomHead
+            self.model = FullSegformerCustomHead(self.cfg)
         else:
             raise NotImplementedError      
 
@@ -242,6 +245,7 @@ class TrainingModule(L.LightningModule):
     def configure_optimizers(self):
         params = self.model.parameters()
         optim_name = self.cfg.OPTIMIZER.TYPE
+        sched_name = self.cfg.SCHEDULER.TYPE
         if optim_name == 'AdamW':
             optimizer = torch.optim.AdamW(
                 params, lr=self.cfg.OPTIMIZER.LR, weight_decay=self.cfg.OPTIMIZER.WEIGHT_DECAY
@@ -253,14 +257,26 @@ class TrainingModule(L.LightningModule):
         else:
             raise NotImplementedError
 
-        scheduler = {
-            # 'scheduler': ReduceLROnPlateau(optimizer,
-            #                                mode='min', factor=0.1, patience=2),
-            'scheduler': PolynomialLR(optimizer, total_iters=self.cfg.EPOCHS+1,
-                                      power=1, last_epoch=-1),
-            'monitor': 'val_loss/segmentation',
-            'interval': 'epoch',
-            'frequency': 1
-        }
+        if sched_name == 'ReduceLROnPlateau':
+            scheduler = {
+                'scheduler': ReduceLROnPlateau(optimizer,
+                                               mode='min', factor=0.1, patience=2),
+            }
+        elif sched_name == 'PolynomialLR':
+            scheduler = {
+                'scheduler': PolynomialLR(optimizer, total_iters=self.cfg.EPOCHS+1,
+                                          power=1, last_epoch=-1),
+            }
+        elif sched_name == '':
+            return optimizer
+        
+        else:
+            raise NotImplementedError
+
+        scheduler['monitor'] = 'val_loss/segmentation'
+        scheduler['interval'] = 'epoch'
+        scheduler['frequency'] = 1
+
         return [optimizer], [scheduler]
+
 

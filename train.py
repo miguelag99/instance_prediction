@@ -29,6 +29,10 @@ def main(args):
     hparams = namespace_to_dict(cfg)
     if cfg.PRETRAINED.RESUME_TRAINING:
         save_dir = cfg.PRETRAINED.PATH
+        assert cfg.WANDB_ID != '', "Wandb ID must be provided to resume training"
+        wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
+                                 log_model=False, name=cfg.TAG,
+                                 id=cfg.WANDB_ID, resume='must')
     else:
         save_dir = os.path.join(
             cfg.LOG_DIR, time.strftime('%d%b%Yat%H:%M') + '_' + socket.gethostname() + '_' + cfg.TAG
@@ -36,6 +40,8 @@ def main(args):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
             os.makedirs(os.path.join(save_dir, 'checkpoints'))
+            wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
+                                log_model=False, name=cfg.TAG)
 
     # Set random seed for reproducibility
     seed = 42
@@ -51,13 +57,14 @@ def main(args):
     if cfg.PRETRAINED.LOAD_WEIGHTS:
         # Load model weights from checkpoint
         l_module = TrainingModule.load_from_checkpoint(os.path.join(cfg.PRETRAINED.PATH,
-                                                                    cfg.PRETRAINED.CKPT))
+                                                                    cfg.PRETRAINED.CKPT),
+                                                       hparams=hparams,
+                                                       cfg=cfg)
         print(f'Loaded model from {cfg.PRETRAINED.PATH}{cfg.PRETRAINED.CKPT}')
     else:
         l_module = TrainingModule(hparams, cfg)
 
-    wdb_logger = WandbLogger(project=cfg.WANDB_PROJECT,save_dir=save_dir,
-                             log_model=False, name=cfg.TAG)
+
     chkpt_callback = ModelCheckpoint(dirpath=os.path.join(save_dir,'checkpoints'),
                                      monitor='vpq',
                                      save_top_k=3,

@@ -35,8 +35,8 @@ def prepare_dataloaders(cfg, return_dataset=False):
         num_workers=nworkers, pin_memory=True, drop_last=True
     )
     val_loader = torch.utils.data.DataLoader(
-        val_data, batch_size=1, shuffle=False,
-        num_workers=nworkers, pin_memory=False, drop_last=False)
+        val_data, batch_size=cfg.BATCHSIZE, shuffle=False,
+        num_workers=nworkers, pin_memory=True, drop_last=True)
 
     if return_dataset:
         return train_loader, val_loader, train_data, val_data

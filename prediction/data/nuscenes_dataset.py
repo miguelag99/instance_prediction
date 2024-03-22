@@ -40,6 +40,11 @@ class ImageDataAugmentator:
                  ret_original_im: bool = False) -> torch.Tensor:
               
         T, N, C, H, W = images.shape
+        
+        if ret_original_im:
+            original_images = images.clone()/255.0
+        else:
+            original_images = None
 
         OH, OW = self.config.IMAGE.ORIGINAL_DIM
         FH, FW = self.config.IMAGE.FINAL_DIM
@@ -67,10 +72,7 @@ class ImageDataAugmentator:
         updated_intrinsics[:, :, 1, 2] -= TC
         
         images = images / 255.0
-        if ret_original_im:
-            original_images = images.clone()
-        else:
-            original_images = None
+
                 
         if self.mode == 'train':
             # Normalize the image and color jitter.
@@ -95,7 +97,7 @@ class ImageDataAugmentator:
 
 class NuscenesDataset(Dataset):
 
-    def __init__(self, config: SimpleNamespace, mode = 'train', return_orig_images: bool = True) -> None:
+    def __init__(self, config: SimpleNamespace, mode = 'train', return_orig_images: bool = False) -> None:
         
         self.nusc = NuScenes(
             version=config.DATASET.VERSION,
@@ -449,7 +451,7 @@ class NuscenesDataset(Dataset):
                     'rotation': instance_annotation['rotation'][pointer],
                     'size': instance_annotation['size'],
                 }
-
+                
                 poly_region, z = self._get_poly_region_in_image(annotation, egopose_list[self.config.TIME_RECEPTIVE_FIELD - 1]) 
                 if isinstance(poly_region, np.ndarray):
                     if i >= self.config.TIME_RECEPTIVE_FIELD and instance_token not in visible_instance_set:

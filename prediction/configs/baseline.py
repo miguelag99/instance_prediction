@@ -1,44 +1,49 @@
 from types import SimpleNamespace
-import torch
 
 Config = SimpleNamespace(
     LOG_DIR = 'training_results',
-    TAG = 'fullsegformer_tiny_v2',
+    TAG = 'fullsegformer_B0_custom_head_finetune',
     WANDB_PROJECT = 'new_code_tests',
+    WANDB_ID = '',
 
     ACCELERATOR = "cuda",
     GPUS = 0,  # which gpus to use
     DEVICES = "auto", # how many gpus to use, auto for all available
     PRECISION = '16-mixed',  # 16-mixed or 32bit
-    BATCHSIZE = 1,
+    BATCHSIZE = 2,
     EPOCHS = 20,
     
     OPTIMIZER = SimpleNamespace(
         TYPE = 'AdamW',
         # LR = 3e-4,
-        LR = 6e-5,
+        # LR = 6e-5,
+        LR = 3e-6,
         # WEIGHT_DECAY = 1e-7,
         WEIGHT_DECAY = 2e-3,
+    ),
+    
+    SCHEDULER = SimpleNamespace(
+        TYPE = 'PolynomialLR',
     ),
 
     # GRAD_NORM_CLIP = 5,
     GRAD_NORM_CLIP = 0.5,
 
-    N_WORKERS = 1,
+    N_WORKERS = 2,
     VIS_INTERVAL = 500,
     LOGGING_INTERVAL = 100,
 
     PRETRAINED = SimpleNamespace(
-        LOAD_WEIGHTS = False,
+        LOAD_WEIGHTS = True,
         RESUME_TRAINING = False,
-        PATH = '/home/perception/workspace/training_results/<>/',
-        CKPT = 'checkpoints/model-epoch=<>.ckpt',
+        PATH = '/home/perception/workspace/training_results/16Mar2024at20:06_robesafe-miguel_fullsegformer_B0_custom_head/',
+        CKPT = 'checkpoints/model-epoch=21-vpq=0.2662.ckpt',
     ),
     
     DATASET = SimpleNamespace(
-        DATAROOT = '/home/perception/Datasets/nuscenes/mini',
+        DATAROOT = '/home/perception/Datasets/nuscenes/trainval',
         # VERSION = 'trainval',
-        VERSION = 'v1.0-mini',
+        VERSION = 'v1.0-trainval',
         NAME = 'nuscenes',
         IGNORE_INDEX = 255,  # Ignore index when creating flow/offset labels
         FILTER_INVISIBLE_VEHICLES = True,  # Filter vehicles that are not visible from the cameras
@@ -73,7 +78,8 @@ Config = SimpleNamespace(
     ),
 
     MODEL = SimpleNamespace(
-        NAME = 'full_segformer',  # 'powerbev', 'powerformer', 'powerformer_dualenc' or 'full_segformer'
+        # 'powerbev', 'powerformer', 'powerformer_dualenc', 'full_segformer' o 'full_segformer_custom_head'
+        NAME = 'full_segformer_custom_head', 
         ENCODER = SimpleNamespace(
             DOWNSAMPLE = 8,
             NAME = 'efficientnet-b4',
@@ -83,7 +89,7 @@ Config = SimpleNamespace(
         STCONV = SimpleNamespace(
             LATENT_DIM = 16, # 16
             NUM_FEATURES = [16, 24, 32, 48, 64],
-            NUM_BLOCKS = 4,
+            NUM_BLOCKS = 3,
             INPUT_EGOPOSE = True,
         ),
         # Tiny
@@ -107,7 +113,7 @@ Config = SimpleNamespace(
             DEPTHS = [2, 2, 2, 2, 2],
             SEQUENCE_REDUCTION_RATIOS = [8, 8, 4, 2, 1],
             HIDDEN_SIZES = [16, 32, 64, 160, 256],  # Must be equal to STCONV.NUMFEATURES
-            PATCH_SIZES = [7, 7, 3, 3, 3],
+            PATCH_SIZES = [7, 3, 3, 3, 3],
             STRIDES = [2, 2, 2, 2, 2],
             NUM_ATTENTION_HEADS = [1, 1, 2, 4, 8],
             MLP_RATIOS = [4, 4, 4, 4, 4],
