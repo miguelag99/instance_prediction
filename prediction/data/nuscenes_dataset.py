@@ -25,7 +25,8 @@ from prediction.utils.instance import convert_instance_mask_to_center_and_offset
 class ImageDataAugmentator:
 
     def __init__(self, config: SimpleNamespace,
-                 mode: Literal['train', 'val', 'test'] = 'train') -> None:
+                 mode: Literal['train', 'val', 'test'] = 'train',
+                 p_grid: float = 0.0) -> None:
 
         self.config = config
         self.mode = mode
@@ -33,7 +34,7 @@ class ImageDataAugmentator:
         self.mean = [0.485, 0.456, 0.406]
         self.std = [0.229, 0.224, 0.225]
 
-        self.p_grid = 1.0
+        self.p_grid = p_grid
 
 
     def __call__(self, images: torch.Tensor, intrinsics: torch.Tensor, 
@@ -137,7 +138,7 @@ class NuscenesDataset(Dataset):
         #     ]
         # )
         self.return_orig_images = return_orig_images
-        self.ida = ImageDataAugmentator(config, self.mode)
+        self.ida = ImageDataAugmentator(config, self.mode, p_grid=0.0)
 
 
     def _get_scenes(self) -> list:
@@ -452,7 +453,30 @@ class NuscenesDataset(Dataset):
                     'size': instance_annotation['size'],
                 }
                 
-                poly_region, z = self._get_poly_region_in_image(annotation, egopose_list[self.config.TIME_RECEPTIVE_FIELD - 1]) 
+                # Aply BEV rotation for augmentation here
+                
+                # Obtain the bounding box polygon of the instance.
+                present_ego_translation, present_ego_rotation = egopose_list[self.config.TIME_RECEPTIVE_FIELD - 1]
+
+                box = Box(
+                    annotation['translation'], annotation['size'], Quaternion(annotation['rotation'])
+                )
+                box.translate(present_ego_translation)
+                box.rotate(present_ego_rotation)
+                pts = box.bottom_corners()[:2].T
+
+                if self.config.LIFT.X_BOUND[0] <= pts.min(axis=0)[0] and pts.max(axis=0)[0] <= self.config.LIFT.X_BOUND[1] \
+                    and self.config.LIFT.Y_BOUND[0] <= pts.min(axis=0)[1] and pts.max(axis=0)[1] <= self.config.LIFT.Y_BOUND[1]:
+                    
+                    pts = np.round((pts - self.bev_start_position[:2] + self.bev_resolution[:2] / 2.0) / self.bev_resolution[:2]).astype(np.int32)
+                    pts[:, [1, 0]] = pts[:, [0, 1]]
+                    z = box.bottom_corners()[2, 0]
+                    poly_region = pts
+                else:
+                    z = None
+                    poly_region = None
+                
+                # poly_region, z = self._get_poly_region_in_image(annotation, egopose_list[self.config.TIME_RECEPTIVE_FIELD - 1]) 
                 if isinstance(poly_region, np.ndarray):
                     if i >= self.config.TIME_RECEPTIVE_FIELD and instance_token not in visible_instance_set:
                         continue
@@ -558,7 +582,7 @@ class NuscenesDataset(Dataset):
         #   - instance: (T, H, W)
         #   - z_position: (T, H, W)
         #   - attribute: (T, H, W)
-            
+                    
         data['segmentation'], data['instance'], data['z_position'], data['attribute'] = self.get_label(instance_dict, egopose_list)
         
 
