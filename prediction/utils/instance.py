@@ -1,11 +1,3 @@
-# ------------------------------------------------------------------------
-# PowerBEV
-# Copyright (c) 2023 Peizheng Li. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from FIERY (https://github.com/wayveai/fiery)
-# Copyright (c) 2021 Wayve Technologies Limited. All Rights Reserved.
-# ------------------------------------------------------------------------
-
 from typing import Tuple
 
 import numpy as np
@@ -42,7 +34,18 @@ def convert_instance_mask_to_center_and_offset_label(instance_img, num_instances
 
 
 def find_instance_centers(center_prediction: torch.Tensor, conf_threshold: float = 0.1, nms_kernel_size: float = 3):
+    """Find the centers of the instances in the center prediction heatmap.
+    Args:
+        center_prediction (torch.Tensor): map of probabilities of each point belonging to an instance in frame 0 of the output
+        conf_threshold (float, optional): minimum confidence threshold to consider a point a vehicle. Defaults to 0.1.
+        nms_kernel_size (float, optional): kernel size to perform the max_pool2d to get the centers. Defaults to 3.
+
+    Returns:
+        Estimated centers (torch.Tensor): indices of the positions of the centers of the instances
+    """
     assert len(center_prediction.shape) == 3
+    
+    # Threshold the heatmap, assign -1 to all points below the threshold
     center_prediction = F.threshold(center_prediction, threshold=conf_threshold, value=-1)
 
     nms_padding = (nms_kernel_size - 1) // 2
@@ -56,6 +59,15 @@ def find_instance_centers(center_prediction: torch.Tensor, conf_threshold: float
 
 
 def group_pixels(centers: torch.Tensor, offset_predictions: torch.Tensor) -> torch.Tensor:
+    """_summary_
+
+    Args:
+        centers (torch.Tensor): index of the centers of the instances
+        offset_predictions (torch.Tensor): filtered offset for each instance
+
+    Returns:
+        torch.Tensor: map with the assigned id of the corresponding center
+    """
     width, height = offset_predictions.shape[-2:]
     x_grid = (
         torch.arange(width, dtype=offset_predictions.dtype, device=offset_predictions.device)
@@ -69,11 +81,15 @@ def group_pixels(centers: torch.Tensor, offset_predictions: torch.Tensor) -> tor
     )
     pixel_grid = torch.cat((x_grid, y_grid), dim=0)
     offset = torch.stack([offset_predictions[1], offset_predictions[0]], dim=0)
+    
+    # Update centers with the predicted flow information
     center_locations = (pixel_grid + offset).view(2, width * height, 1).permute(2, 1, 0)
     centers = centers.view(-1, 1, 2)
 
+    #  Calculate the distance of the points to the centers
     distances = torch.norm(centers - center_locations, dim=-1)
 
+    # Assign each pixel to the closest center
     instance_id = torch.argmin(distances, dim=0).reshape(1, width, height) + 1
     return instance_id
 
@@ -86,6 +102,20 @@ def get_instance_segmentation_and_centers(
     nms_kernel_size: float = 5,
     max_n_instance_centers: int = 100,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Return a map of points with the corresponding instance id
+
+    Args:
+        center_predictions (torch.Tensor): map of probabilities of each point belonging to an instance in frame 0 of the output
+        offset_predictions (torch.Tensor): map of flow vectors for each point in frame 1 of the output
+        foreground_mask (torch.Tensor): mask of te points that belong to the vehicle class in frame 1
+        conf_threshold (float, optional): confidence threshold to classify a point. Defaults to 0.1.
+        nms_kernel_size (float, optional): kernel size to calculate the instance centers using maxpooling. Defaults to 5.
+        max_n_instance_centers (int, optional): maximum number of centers per sample. Defaults to 100.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: _description_
+    """
+    
     width, height = offset_predictions.shape[-2:]
     center_predictions = center_predictions.view(1, width, height)
     offset_predictions = offset_predictions.view(2, width, height)
@@ -93,6 +123,7 @@ def get_instance_segmentation_and_centers(
 
     centers = find_instance_centers(center_predictions, conf_threshold=conf_threshold, nms_kernel_size=nms_kernel_size)
     if not len(centers):
+        # If there are not centers, return an empty instance segmentation
         return torch.zeros(center_predictions.shape, dtype=torch.int64, device=center_predictions.device)
 
     if len(centers) > max_n_instance_centers:
@@ -135,6 +166,17 @@ def make_instance_seg_consecutive(instance_seg):
 
 
 def make_instance_id_temporally_consecutive(pred_inst, preds, backward_flow, ignore_index=255.0):
+    """_summary_
+
+    Args:
+        pred_inst (torch.Tensor): map with the correspondoning instance id
+        preds (torch.Tensor): predicted segmentation map
+        backward_flow (torch.Tensor): map with the predicted flow
+        ignore_index (float, optional): index to be removed from calculation. Defaults to 255.0.
+
+    Returns:
+        consistent_instance_seg (torch.Tensor)
+    """
     assert pred_inst.shape[0] == 1, 'Assumes batch size = 1'
 
     # Initialise instance segmentations with prediction corresponding to the present
@@ -144,7 +186,8 @@ def make_instance_id_temporally_consecutive(pred_inst, preds, backward_flow, ign
     _, seq_len, _, h, w = preds.shape
 
     for t in range(1, seq_len):
-        init_warped_instance_seg = flow_warp(consistent_instance_seg[-1].unsqueeze(2).float(), backward_flow[:, t:t+1]).squeeze(2).int()
+        init_warped_instance_seg = flow_warp(consistent_instance_seg[-1].unsqueeze(2).float(),
+                                             backward_flow[:, t:t+1]).squeeze(2).int()
 
         warped_instance_seg = init_warped_instance_seg * preds[:, t:t+1, 0]
     
@@ -155,6 +198,17 @@ def make_instance_id_temporally_consecutive(pred_inst, preds, backward_flow, ign
 
 
 def predict_instance_segmentation(output, compute_matched_centers=False,  vehicles_id=1, spatial_extent=[50, 50]):
+    """_summary_
+
+    Args:
+        output (dict): output dictionary from the model containing at least 'segmentation' [t,n_class,200,200] and 'instance_flow' [t,2,200,200] keys.
+        compute_matched_centers (bool, optional): _description_. Defaults to False.
+        vehicles_id (int, optional): number of the index that corresponds to vehicle class . Defaults to 1.
+        spatial_extent (list, optional): bev range in each axis in meters. Defaults to [50, 50].
+
+    Returns:
+        _type_: _description_
+    """
     preds = output['segmentation'].detach()
     preds = torch.argmax(preds, dim=2, keepdims=True)
     foreground_masks = preds.squeeze(2) == vehicles_id
